@@ -1,0 +1,9 @@
+.build/
+dist/
+/dbibackend
+*.exe
+*.app/
+
+# built by scripts/release.sh
+winusb/helper/*.exe
+.DS_Store

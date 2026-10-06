@@ -1,0 +1,128 @@
+# DBI Backend (Go)
+
+[English](README.md) | [Русский](README.ru.md) | [Español](README.es.md) | [Italiano](README.it.md) | [Deutsch](README.de.md) | **Français** | [Português](README.pt.md) | [中文](README.zh.md) | [日本語](README.ja.md) | [हिन्दी](README.hi.md) | [العربية](README.ar.md)
+
+Une application de bureau pour installer des jeux par USB sur une Nintendo Switch équipée de [DBI](https://github.com/rashevskyv/dbi). Choisissez un dossier contenant des fichiers `.nsp` / `.nsz` / `.xci`, branchez la Switch et lancez l’installation.
+
+C’est une réécriture en Go de [lunixoid/dbibackend](https://github.com/lunixoid/dbibackend) (un script Python), avec une interface graphique, des versions prêtes à l’emploi pour macOS et Windows, et sans Python ni libusb à installer.
+
+![DBI Backend](docs/screenshot.png)
+
+## Fonctionnalités
+
+- **Interface graphique** : choix du dossier (Finder, Explorateur ou glisser-déposer), liste des fichiers trouvés avec leur taille, état de la connexion, barre de progression avec vitesse de transfert, et journal.
+- **Aucun redémarrage** : quand DBI a terminé, l’application attend de nouveau la Switch. Le dernier dossier est mémorisé et le serveur démarre automatiquement au lancement.
+- **11 langues** : anglais, russe, espagnol, italien, allemand, français, portugais, chinois, japonais, hindi et arabe. La langue suit celle du système et peut être changée dans la fenêtre.
+- **Pilote Windows intégré** : lorsque l’application détecte la Switch sans pilote, elle propose de l’installer. Cela remplace l’étape manuelle avec Zadig (voir ci-dessous).
+- **Mode ligne de commande** (`-cli`), qui se comporte comme le script d’origine, pour l’automatisation.
+- **Plus sûr que l’original** : la Switch ne peut demander que des fichiers du dossier choisi.
+
+## Téléchargement
+
+Les versions prêtes à l’emploi se trouvent sur la page [Releases](../../releases).
+
+| Système | Fichier | Remarques |
+|---|---|---|
+| macOS 12+ (Apple Silicon et Intel) | `DBI Backend.app` | Non signée avec un certificat de développeur Apple. Au premier lancement : clic droit → **Ouvrir**, ou exécutez `xattr -dr com.apple.quarantine "DBI Backend.app"`. |
+| Windows 10/11 (x64 et ARM64) | `DBI Backend.exe` | Un seul fichier, rien d’autre à installer. Le pilote USB s’installe depuis l’application (voir ci-dessous). |
+| Linux | compilation depuis les sources | Voir [Compilation](#compilation). |
+
+## Utilisation
+
+1. Lancez l’application et choisissez le dossier contenant vos jeux. Les sous-dossiers sont inclus.
+2. Sur la Switch, ouvrez DBI et choisissez **Install title from USB**.
+3. Branchez la Switch à l’ordinateur avec un câble USB. L’état passe à **Connecté**.
+4. Sélectionnez les fichiers dans DBI et installez-les. La progression et la vitesse s’affichent en bas de la fenêtre.
+
+## Windows : pilote USB
+
+Sous Windows, l’application ne peut communiquer avec la Switch que via le pilote WinUSB. Auparavant, il fallait l’installer à la main avec [Zadig](https://zadig.akeo.ie/).
+
+Désormais, l’application s’en charge elle-même. Lorsqu’elle détecte la Switch sans pilote, elle affiche une invite : cliquez sur **Installer** et acceptez la demande d’administrateur de Windows. Vous pouvez aussi utiliser à tout moment le bouton **Installer le pilote USB** de la fenêtre. La Switch doit être branchée et DBI doit être en mode **Install title from USB**.
+
+Fonctionnement : l’application attribue le pilote WinUSB fourni avec Windows et signé par Microsoft (comme **Mettre à jour le pilote → Choisir parmi une liste… → WinUsb Device** dans le Gestionnaire de périphériques). Elle n’ajoute aucun certificat au système et fonctionne même lorsque le Contrôle intelligent des applications est activé.
+
+## Linux
+
+Autorisez l’accès à la Switch sans root en installant la règle udev :
+
+```bash
+sudo cp data/linux/99-dbibackend.rules /etc/udev/rules.d/
+sudo udevadm control --reload-rules
+```
+
+## Vitesse de transfert
+
+La vitesse est surtout limitée par la Switch, pas par l’ordinateur :
+
+- En **USB 2.0**, le plafond est d’environ **40 Mo/s**. Avec des fichiers `.nsp` / `.xci` non compressés, l’application occupe le bus environ 80 % du temps et atteint en moyenne environ 32 Mo/s.
+- Les **fichiers `.nsz`** s’installent environ trois fois plus lentement : la Switch décompresse elle-même chaque bloc.
+- DBI demande les données par morceaux de 1 Mo maximum et ne demande le morceau suivant qu’après avoir traité le précédent. L’ordinateur ne peut pas accélérer cela.
+
+À la fin de chaque session, le journal affiche une ligne `Session stats` :
+
+| Champ | Signification |
+|---|---|
+| `usb_MB/s` | Vitesse pendant l’envoi des données |
+| `avg_MB/s` | Vitesse moyenne entre la première et la dernière requête |
+| `time_data` / `time_handshake` / `waiting_for_switch` | Part du temps consacrée à l’envoi des données, aux échanges du protocole et à l’attente de la Switch |
+| `active` / `idle` | Durée de l’installation, et temps d’inactivité avant et après |
+
+Si `waiting_for_switch` est élevé, le goulot d’étranglement est la Switch (vitesse d’écriture de la microSD, décompression NSZ). Avec **Débogage** activé, le journal affiche chaque requête de DBI avec sa taille et sa vitesse.
+
+## Mode ligne de commande
+
+```bash
+dbibackend -cli ~/Switch          # wait for the Switch, serve one session, exit
+dbibackend -cli -debug ~/Switch   # the same with a detailed log
+dbibackend ~/Switch               # open the window with this folder
+dbibackend -install-driver        # Windows: install the WinUSB driver for the connected Switch
+```
+
+Sous macOS, le serveur peut démarrer automatiquement au branchement de la Switch : modifiez le chemin dans `data/darwin/com.dbibackend.usb.agent.plist` et copiez ce fichier dans `~/Library/LaunchAgents/`.
+
+## Compilation
+
+Il vous faut Go 1.25+ et un compilateur C (cgo est requis par libusb et Fyne).
+
+```bash
+# macOS
+brew install libusb pkg-config
+# Debian/Ubuntu (plus the Fyne dependencies: https://docs.fyne.io/started/)
+sudo apt install libusb-1.0-0-dev pkg-config
+
+make build        # ./dbibackend for the current system
+make test         # tests
+make release      # dist/DBI Backend.app and dist/DBI Backend.exe
+```
+
+`make release` s’exécute sous macOS. Cette commande compile libusb depuis les sources et la lie statiquement : le résultat ne nécessite aucune installation supplémentaire. La version Windows requiert en outre `brew install mingw-w64` et l’outil `fyne` (`go install fyne.io/tools/cmd/fyne@latest`).
+
+## Structure du projet
+
+| Paquet | Rôle |
+|---|---|
+| `dbi` | Protocole DBI0 (LIST / FILE_RANGE / EXIT), analyse du dossier, statistiques de session |
+| `usbconn` | Ouverture de la Switch via libusb (gousb), transferts bulk |
+| `gui` | Interface Fyne |
+| `i18n` | Traductions (`i18n/locales/*.json`) |
+| `winusb` | Installation de WinUSB sous Windows (SetupAPI) |
+| `cmd/winusb-helper` | Utilitaire natif Windows ARM64 pour l’installation du pilote |
+
+Pour ajouter ou corriger une traduction, modifiez `i18n/locales/<code>.json`. `go test ./i18n/` vérifie que chaque langue contient toutes les clés.
+
+## Différences avec l’original
+
+- La Switch ne peut demander que des fichiers du dossier choisi. L’original ouvrait n’importe quel chemin envoyé par l’appareil.
+- Le filtre d’extensions est corrigé : l’original reconnaissait `nsz` sans le point.
+- Si des fichiers de sous-dossiers différents portent le même nom, c’est le premier trouvé qui est utilisé (DBI ne voit que les noms de fichiers).
+
+## Remerciements et licences
+
+- **Ce projet** : [MIT](LICENSE).
+- [lunixoid/dbibackend](https://github.com/lunixoid/dbibackend) (MIT) : l’implémentation originale du protocole.
+- [DBI](https://github.com/rashevskyv/dbi) par duckbill : l’installateur sur la Switch.
+- [libusb](https://libusb.info/) (LGPL-2.1) est liée statiquement dans les versions compilées. Le code source de ce projet est ouvert : vous pouvez donc le recompiler avec votre propre version de libusb.
+- [Fyne](https://fyne.io/) (BSD-3-Clause), [gousb](https://github.com/google/gousb) (Apache-2.0), [zenity](https://github.com/ncruces/zenity) (MIT).
+
+Ce projet n’est pas affilié à Nintendo. N’installez que des jeux que vous possédez.
