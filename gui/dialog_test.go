@@ -1,6 +1,7 @@
 package gui
 
 import (
+	"path/filepath"
 	"testing"
 
 	"fyne.io/fyne/v2/test"
@@ -40,5 +41,22 @@ func TestLanguageRebuild(t *testing.T) {
 	}
 	if u.countLabel.Text != "0 шт., 0 Б" {
 		t.Errorf("count = %q", u.countLabel.Text)
+	}
+}
+
+// A typed path that no longer exists must not break the picker: it opens in
+// the nearest existing parent.
+func TestStartDir(t *testing.T) {
+	base := t.TempDir()
+	for in, want := range map[string]string{
+		base:                                   base,
+		"  " + base + "  ":                     base,
+		filepath.Join(base, "renamed", "game"): base,
+		"":                                     "",
+		"relative/does/not/exist":              "",
+	} {
+		if got := startDir(in); got != want {
+			t.Errorf("startDir(%q) = %q, want %q", in, got, want)
+		}
 	}
 }

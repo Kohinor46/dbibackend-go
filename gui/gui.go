@@ -259,7 +259,7 @@ func (u *ui) chooseDirFyne() {
 			u.setDir(uri.Path())
 		}
 	}, u.win)
-	if cur := u.dirEntry.Text; isDir(cur) {
+	if cur := startDir(u.dirEntry.Text); cur != "" {
 		if l, err := storage.ListerForURI(storage.NewFileURI(cur)); err == nil {
 			d.SetLocation(l)
 		}
