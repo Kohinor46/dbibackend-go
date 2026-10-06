@@ -14,6 +14,7 @@ Um aplicativo para desktop que instala jogos via USB em um Nintendo Switch com o
 - **Sem reinícios**: quando o DBI termina, o aplicativo volta a aguardar o Switch. A última pasta fica salva e o servidor inicia automaticamente ao abrir o aplicativo.
 - **11 idiomas**: inglês, russo, espanhol, italiano, alemão, francês, português, chinês, japonês, hindi e árabe. O idioma acompanha o do sistema e pode ser alterado na janela.
 - **Driver do Windows integrado**: quando o aplicativo detecta o Switch sem driver, ele oferece a instalação. Isso substitui a etapa manual com o Zadig (veja abaixo).
+- **Arquivos via MTP no macOS e no Linux**: navegue pelos armazenamentos do Switch, envie, baixe e exclua arquivos, sem o Android File Transfer (veja abaixo).
 - **Modo de linha de comando** (`-cli`), que funciona como o script original, para automação.
 - **Mais seguro que o original**: o Switch só pode solicitar arquivos da pasta escolhida.
 
@@ -42,14 +43,32 @@ Agora o próprio aplicativo faz isso. Quando detecta o Switch sem driver, ele ex
 
 Como funciona: o aplicativo atribui o driver WinUSB que acompanha o Windows e é assinado pela Microsoft (o mesmo que **Atualizar driver → Permitir que eu escolha… → WinUsb Device** no Gerenciador de Dispositivos). Ele não adiciona nenhum certificado ao sistema e funciona com o Controle Inteligente de Aplicativos ativado.
 
+## Arquivos via MTP (macOS e Linux)
+
+O macOS não tem suporte nativo a MTP, então o Switch não aparece no Finder quando o DBI está no modo MTP, e o Android File Transfer, a alternativa de costume, não recebe mais atualizações. A aba **Arquivos (MTP)** o substitui:
+
+1. No Switch, abra o DBI e escolha **Run MTP responder**; depois, conecte o cabo.
+2. No aplicativo, abra a aba **Arquivos (MTP)** e clique em **Conectar**.
+3. Escolha um armazenamento (cartão SD, NAND, destinos de instalação, saves etc.), abra as pastas e envie arquivos com **Enviar arquivos…** ou arrastando-os para a janela. Você também pode baixar e excluir arquivos e criar pastas.
+
+Para instalar um jogo, envie-o para um armazenamento com “install” no nome: o DBI o instala à medida que ele chega. Arquivos com mais de 4 GB são suportados.
+
+![Arquivos (MTP)](docs/screenshot-mtp.png)
+
+**“O Switch está sendo usado por outro programa.”** No macOS, o serviço de câmeras do sistema (`ptpcamerad`) se apropria dos dispositivos MTP assim que eles são conectados. Clique em **Liberar dispositivo**: o aplicativo interrompe o serviço e assume o Switch; o macOS volta a iniciar o serviço sozinho quando necessário. O Android File Transfer também prende o dispositivo, então feche-o antes.
+
+No Windows, a aba fica oculta: o Explorador de Arquivos já mostra o Switch no modo MTP.
+
 ## Linux
 
-Permita o acesso ao Switch sem root instalando a regra do udev:
+Permita o acesso ao Switch sem root instalando a regra do udev (ela cobre os dois modos: instalação via USB e MTP):
 
 ```bash
 sudo cp data/linux/99-dbibackend.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules
 ```
+
+Se a aba **Arquivos (MTP)** informar que o Switch está sendo usado por outro programa, talvez o ambiente de desktop o tenha montado automaticamente (gvfs): desmonte-o no gerenciador de arquivos.
 
 ## Velocidade de transferência
 
@@ -103,7 +122,8 @@ make release      # dist/DBI Backend.app and dist/DBI Backend.exe
 | Pacote | Finalidade |
 |---|---|
 | `dbi` | Protocolo DBI0 (LIST / FILE_RANGE / EXIT), varredura da pasta, estatísticas da sessão |
-| `usbconn` | Abertura do Switch via libusb (gousb), transferências bulk |
+| `usbconn` | Abertura do Switch via libusb (gousb) nos modos de instalação via USB e MTP, transferências bulk |
+| `mtp` | Cliente MTP (PTP sobre USB): armazenamentos, pastas, envio e download, arquivos com mais de 4 GB |
 | `gui` | Interface Fyne |
 | `i18n` | Traduções (`i18n/locales/*.json`) |
 | `winusb` | Instalação do WinUSB no Windows (SetupAPI) |

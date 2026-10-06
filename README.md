@@ -14,6 +14,7 @@ It is a Go rewrite of [lunixoid/dbibackend](https://github.com/lunixoid/dbibacke
 - **No restarts**: after DBI finishes, the app waits for the Switch again. The last folder is remembered, and the server starts automatically on launch.
 - **11 languages**: English, Russian, Spanish, Italian, German, French, Portuguese, Chinese, Japanese, Hindi, and Arabic. The language follows the system and can be changed in the window.
 - **Windows driver built in**: when the app sees the Switch without a driver, it offers to install it. This replaces the manual Zadig step (see below).
+- **Files over MTP on macOS and Linux**: browse the Switch's storages, upload, download and delete files, without Android File Transfer (see below).
 - **Command-line mode** (`-cli`) that behaves like the original script, for automation.
 - **Safer than the original**: the Switch can only request files from the chosen folder.
 
@@ -42,14 +43,32 @@ Now the app does it itself. When it sees the Switch without a driver, it shows a
 
 How it works: the app assigns the WinUSB driver that ships with Windows and is signed by Microsoft (the same as **Update driver → Let me pick → WinUsb Device** in Device Manager). It doesn't add any certificates to the system, and it works with Smart App Control enabled.
 
+## Files over MTP (macOS and Linux)
+
+macOS has no built-in MTP support, so the Switch doesn't appear in Finder when DBI runs its MTP responder, and Android File Transfer, the usual workaround, is no longer updated. The **Files (MTP)** tab replaces it:
+
+1. On the Switch, open DBI and choose **Run MTP responder**, then connect the cable.
+2. In the app, open the **Files (MTP)** tab and click **Connect**.
+3. Pick a storage (SD card, NAND, install targets, saves and so on), open folders, and upload files with **Upload files…** or by dragging them onto the window. You can also download and delete files and create folders.
+
+To install a game, upload it to a storage with "install" in its name: DBI installs it as it arrives. Files over 4 GB are supported.
+
+![Files (MTP)](docs/screenshot-mtp.png)
+
+**"The Switch is used by another program."** On macOS the system camera service (`ptpcamerad`) grabs MTP devices as soon as they are connected. Click **Free the device**: the app stops the service and takes the Switch; macOS starts the service again on its own when it's needed. Android File Transfer also holds the device, so quit it first.
+
+On Windows the tab is hidden: Explorer already shows the Switch in MTP mode.
+
 ## Linux
 
-Allow access to the Switch without root by installing the udev rule:
+Allow access to the Switch without root by installing the udev rule (it covers both the USB install and MTP modes):
 
 ```bash
 sudo cp data/linux/99-dbibackend.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules
 ```
+
+If the **Files (MTP)** tab reports that the Switch is used by another program, the desktop may have mounted it on its own (gvfs): unmount it in the file manager.
 
 ## Transfer speed
 
@@ -103,7 +122,8 @@ make release      # dist/DBI Backend.app and dist/DBI Backend.exe
 | Package | Purpose |
 |---|---|
 | `dbi` | DBI0 protocol (LIST / FILE_RANGE / EXIT), folder scan, session statistics |
-| `usbconn` | Opening the Switch through libusb (gousb), bulk transfers |
+| `usbconn` | Opening the Switch through libusb (gousb) in USB install and MTP modes, bulk transfers |
+| `mtp` | MTP client (PTP over USB): storages, folders, upload and download, files over 4 GB |
 | `gui` | Fyne interface |
 | `i18n` | Translations (`i18n/locales/*.json`) |
 | `winusb` | Installing WinUSB on Windows (SetupAPI) |

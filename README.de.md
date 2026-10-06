@@ -14,6 +14,7 @@ Es handelt sich um eine Neuimplementierung von [lunixoid/dbibackend](https://git
 - **Kein Neustart nötig**: Wenn DBI fertig ist, wartet die App erneut auf die Switch. Der zuletzt verwendete Ordner wird gespeichert, und der Server startet beim Öffnen der App automatisch.
 - **11 Sprachen**: Englisch, Russisch, Spanisch, Italienisch, Deutsch, Französisch, Portugiesisch, Chinesisch, Japanisch, Hindi und Arabisch. Die Sprache richtet sich nach dem System und lässt sich im Fenster ändern.
 - **Integrierter Windows-Treiber**: Erkennt die App die Switch ohne Treiber, bietet sie an, ihn zu installieren. Das ersetzt den manuellen Schritt mit Zadig (siehe unten).
+- **Dateien über MTP unter macOS und Linux**: Speicher der Switch durchsuchen, Dateien hochladen, herunterladen und löschen – ohne Android File Transfer (siehe unten).
 - **Kommandozeilenmodus** (`-cli`), der sich wie das Original-Skript verhält – für die Automatisierung.
 - **Sicherer als das Original**: Die Switch kann nur Dateien aus dem gewählten Ordner anfordern.
 
@@ -42,14 +43,32 @@ Jetzt übernimmt das die App selbst. Erkennt sie die Switch ohne Treiber, zeigt 
 
 So funktioniert es: Die App weist den WinUSB-Treiber zu, der mit Windows ausgeliefert wird und von Microsoft signiert ist (genau wie **Treiber aktualisieren → Aus einer Liste verfügbarer Treiber auf meinem Computer auswählen → WinUsb Device** im Geräte-Manager). Es werden keine Zertifikate zum System hinzugefügt, und es funktioniert auch bei aktivierter Intelligenter App-Steuerung (Smart App Control).
 
+## Dateien über MTP (macOS und Linux)
+
+macOS bietet keine integrierte MTP-Unterstützung. Deshalb erscheint die Switch nicht im Finder, wenn DBI seinen MTP-Responder ausführt, und Android File Transfer, die übliche Notlösung, wird nicht mehr weiterentwickelt. Der Tab **Dateien (MTP)** ersetzt es:
+
+1. Öffnen Sie auf der Switch DBI und wählen Sie **Run MTP responder**. Schließen Sie dann das Kabel an.
+2. Öffnen Sie in der App den Tab **Dateien (MTP)** und klicken Sie auf **Verbinden**.
+3. Wählen Sie einen Speicher (SD-Karte, NAND, Installationsziele, Spielstände usw.), öffnen Sie Ordner und laden Sie Dateien mit **Dateien hochladen…** oder per Drag & Drop ins Fenster hoch. Sie können außerdem Dateien herunterladen und löschen sowie Ordner anlegen.
+
+Um ein Spiel zu installieren, laden Sie es in einen Speicher hoch, dessen Name „install“ enthält: DBI installiert es, während es übertragen wird. Dateien über 4 GB werden unterstützt.
+
+![Dateien (MTP)](docs/screenshot-mtp.png)
+
+**„Die Switch wird von einem anderen Programm verwendet.“** Unter macOS belegt der Kameradienst des Systems (`ptpcamerad`) MTP-Geräte, sobald sie angeschlossen werden. Klicken Sie auf **Gerät freigeben**: Die App beendet den Dienst und übernimmt die Switch; macOS startet den Dienst bei Bedarf von selbst wieder. Auch Android File Transfer belegt das Gerät, beenden Sie es also vorher.
+
+Unter Windows ist der Tab ausgeblendet: Der Datei-Explorer zeigt die Switch im MTP-Modus bereits an.
+
 ## Linux
 
-Installieren Sie die udev-Regel, um ohne root auf die Switch zugreifen zu können:
+Installieren Sie die udev-Regel, um ohne root auf die Switch zugreifen zu können (sie gilt für beide Modi: USB-Installation und MTP):
 
 ```bash
 sudo cp data/linux/99-dbibackend.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules
 ```
+
+Meldet der Tab **Dateien (MTP)**, dass die Switch von einem anderen Programm verwendet wird, hat die Desktop-Umgebung sie möglicherweise selbst eingebunden (gvfs): Hängen Sie sie im Dateimanager aus.
 
 ## Übertragungsgeschwindigkeit
 
@@ -103,7 +122,8 @@ make release      # dist/DBI Backend.app and dist/DBI Backend.exe
 | Paket | Zweck |
 |---|---|
 | `dbi` | DBI0-Protokoll (LIST / FILE_RANGE / EXIT), Ordnerscan, Sitzungsstatistik |
-| `usbconn` | Öffnen der Switch über libusb (gousb), Bulk-Transfers |
+| `usbconn` | Öffnen der Switch über libusb (gousb) im USB-Installations- und MTP-Modus, Bulk-Transfers |
+| `mtp` | MTP-Client (PTP über USB): Speicher, Ordner, Hoch- und Herunterladen, Dateien über 4 GB |
 | `gui` | Fyne-Oberfläche |
 | `i18n` | Übersetzungen (`i18n/locales/*.json`) |
 | `winusb` | Installation von WinUSB unter Windows (SetupAPI) |

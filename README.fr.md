@@ -14,6 +14,7 @@ C’est une réécriture en Go de [lunixoid/dbibackend](https://github.com/lunix
 - **Aucun redémarrage** : quand DBI a terminé, l’application attend de nouveau la Switch. Le dernier dossier est mémorisé et le serveur démarre automatiquement au lancement.
 - **11 langues** : anglais, russe, espagnol, italien, allemand, français, portugais, chinois, japonais, hindi et arabe. La langue suit celle du système et peut être changée dans la fenêtre.
 - **Pilote Windows intégré** : lorsque l’application détecte la Switch sans pilote, elle propose de l’installer. Cela remplace l’étape manuelle avec Zadig (voir ci-dessous).
+- **Fichiers via MTP sous macOS et Linux** : parcourez les stockages de la Switch, envoyez, téléchargez et supprimez des fichiers, sans Android File Transfer (voir ci-dessous).
 - **Mode ligne de commande** (`-cli`), qui se comporte comme le script d’origine, pour l’automatisation.
 - **Plus sûr que l’original** : la Switch ne peut demander que des fichiers du dossier choisi.
 
@@ -42,14 +43,32 @@ Désormais, l’application s’en charge elle-même. Lorsqu’elle détecte la 
 
 Fonctionnement : l’application attribue le pilote WinUSB fourni avec Windows et signé par Microsoft (comme **Mettre à jour le pilote → Choisir parmi une liste… → WinUsb Device** dans le Gestionnaire de périphériques). Elle n’ajoute aucun certificat au système et fonctionne même lorsque le Contrôle intelligent des applications est activé.
 
+## Fichiers via MTP (macOS et Linux)
+
+macOS ne prend pas en charge MTP nativement : la Switch n’apparaît donc pas dans le Finder lorsque DBI est en mode MTP, et Android File Transfer, la solution habituelle, n’est plus mis à jour. L’onglet **Fichiers (MTP)** le remplace :
+
+1. Sur la Switch, ouvrez DBI et choisissez **Run MTP responder**, puis branchez le câble.
+2. Dans l’application, ouvrez l’onglet **Fichiers (MTP)** et cliquez sur **Connecter**.
+3. Choisissez un stockage (carte SD, NAND, cibles d’installation, sauvegardes, etc.), ouvrez les dossiers et envoyez des fichiers avec **Envoyer des fichiers…** ou en les faisant glisser sur la fenêtre. Vous pouvez aussi télécharger et supprimer des fichiers, et créer des dossiers.
+
+Pour installer un jeu, envoyez-le vers un stockage dont le nom contient « install » : DBI l’installe au fur et à mesure de sa réception. Les fichiers de plus de 4 Go sont pris en charge.
+
+![Fichiers (MTP)](docs/screenshot-mtp.png)
+
+**« La Switch est utilisée par un autre programme. »** Sous macOS, le service caméra du système (`ptpcamerad`) s’empare des appareils MTP dès leur branchement. Cliquez sur **Libérer l’appareil** : l’application arrête le service et prend la Switch ; macOS relance le service de lui-même lorsqu’il en a besoin. Android File Transfer bloque aussi l’appareil : quittez-le d’abord.
+
+Sous Windows, l’onglet est masqué : l’Explorateur de fichiers affiche déjà la Switch en mode MTP.
+
 ## Linux
 
-Autorisez l’accès à la Switch sans root en installant la règle udev :
+Autorisez l’accès à la Switch sans root en installant la règle udev (elle couvre les deux modes : installation USB et MTP) :
 
 ```bash
 sudo cp data/linux/99-dbibackend.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules
 ```
+
+Si l’onglet **Fichiers (MTP)** indique que la Switch est utilisée par un autre programme, l’environnement de bureau l’a peut-être montée de lui-même (gvfs) : démontez-la dans le gestionnaire de fichiers.
 
 ## Vitesse de transfert
 
@@ -103,7 +122,8 @@ make release      # dist/DBI Backend.app and dist/DBI Backend.exe
 | Paquet | Rôle |
 |---|---|
 | `dbi` | Protocole DBI0 (LIST / FILE_RANGE / EXIT), analyse du dossier, statistiques de session |
-| `usbconn` | Ouverture de la Switch via libusb (gousb), transferts bulk |
+| `usbconn` | Ouverture de la Switch via libusb (gousb) en modes installation USB et MTP, transferts bulk |
+| `mtp` | Client MTP (PTP sur USB) : stockages, dossiers, envoi et téléchargement, fichiers de plus de 4 Go |
 | `gui` | Interface Fyne |
 | `i18n` | Traductions (`i18n/locales/*.json`) |
 | `winusb` | Installation de WinUSB sous Windows (SetupAPI) |

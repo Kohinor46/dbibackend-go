@@ -11,7 +11,7 @@ set -eu
 LIBUSB_VERSION=${LIBUSB_VERSION:-1.0.30}
 APP_NAME="DBI Backend"
 APP_ID=com.dbibackend.gui
-APP_VERSION=${APP_VERSION:-1.0.1}
+APP_VERSION=${APP_VERSION:-1.1.0}
 MACOS_MIN=12.0
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)

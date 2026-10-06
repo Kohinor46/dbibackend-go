@@ -14,6 +14,7 @@ Es una reescritura en Go de [lunixoid/dbibackend](https://github.com/lunixoid/db
 - **Sin reinicios**: cuando DBI termina, la aplicación vuelve a esperar a la Switch. Recuerda la última carpeta y el servidor se inicia automáticamente al abrirla.
 - **11 idiomas**: inglés, ruso, español, italiano, alemán, francés, portugués, chino, japonés, hindi y árabe. El idioma sigue al del sistema y se puede cambiar desde la ventana.
 - **Controlador de Windows integrado**: si la aplicación detecta la Switch sin controlador, te ofrece instalarlo. Esto sustituye el paso manual con Zadig (ver más abajo).
+- **Archivos por MTP en macOS y Linux**: explora los almacenamientos de la Switch y sube, descarga y elimina archivos sin Android File Transfer (ver más abajo).
 - **Modo de línea de comandos** (`-cli`), que se comporta como el script original, para automatizaciones.
 - **Más segura que la original**: la Switch solo puede pedir archivos de la carpeta elegida.
 
@@ -42,14 +43,32 @@ Ahora lo hace la propia aplicación. Cuando detecta la Switch sin controlador, m
 
 Cómo funciona: la aplicación asigna el controlador WinUSB que viene con Windows y está firmado por Microsoft (lo mismo que **Actualizar controlador → Elegir en una lista de controladores disponibles en el equipo → WinUsb Device** en el Administrador de dispositivos). No añade ningún certificado al sistema y funciona con el Control inteligente de aplicaciones (Smart App Control) activado.
 
+## Archivos por MTP (macOS y Linux)
+
+macOS no tiene soporte integrado para MTP, así que la Switch no aparece en Finder cuando DBI ejecuta su respondedor MTP, y Android File Transfer, la solución habitual, ya no se actualiza. La pestaña **Archivos (MTP)** lo sustituye:
+
+1. En la Switch, abre DBI y elige **Run MTP responder**; después conecta el cable.
+2. En la aplicación, abre la pestaña **Archivos (MTP)** y haz clic en **Conectar**.
+3. Elige un almacenamiento (tarjeta SD, NAND, destinos de instalación, partidas guardadas, etc.), abre carpetas y sube archivos con **Subir archivos…** o arrastrándolos a la ventana. También puedes descargar y eliminar archivos y crear carpetas.
+
+Para instalar un juego, súbelo a un almacenamiento que tenga «install» en su nombre: DBI lo instala a medida que llega. Se admiten archivos de más de 4 GB.
+
+![Archivos (MTP)](docs/screenshot-mtp.png)
+
+**«La Switch está en uso por otro programa».** En macOS, el servicio de cámaras del sistema (`ptpcamerad`) se apropia de los dispositivos MTP en cuanto se conectan. Haz clic en **Liberar dispositivo**: la aplicación detiene el servicio y toma la Switch; macOS vuelve a iniciar el servicio por sí solo cuando lo necesita. Android File Transfer también retiene el dispositivo, así que ciérralo antes.
+
+En Windows la pestaña está oculta: el Explorador de archivos ya muestra la Switch en modo MTP.
+
 ## Linux
 
-Para acceder a la Switch sin root, instala la regla de udev:
+Para acceder a la Switch sin root, instala la regla de udev (sirve tanto para el modo de instalación por USB como para el modo MTP):
 
 ```bash
 sudo cp data/linux/99-dbibackend.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules
 ```
+
+Si la pestaña **Archivos (MTP)** indica que la Switch está en uso por otro programa, puede que el escritorio la haya montado por su cuenta (gvfs): desmóntala en el gestor de archivos.
 
 ## Velocidad de transferencia
 
@@ -103,7 +122,8 @@ make release      # dist/DBI Backend.app and dist/DBI Backend.exe
 | Paquete | Función |
 |---|---|
 | `dbi` | Protocolo DBI0 (LIST / FILE_RANGE / EXIT), escaneo de carpetas, estadísticas de sesión |
-| `usbconn` | Apertura de la Switch mediante libusb (gousb), transferencias bulk |
+| `usbconn` | Apertura de la Switch mediante libusb (gousb) en los modos de instalación por USB y MTP, transferencias bulk |
+| `mtp` | Cliente MTP (PTP sobre USB): almacenamientos, carpetas, subida y descarga, archivos de más de 4 GB |
 | `gui` | Interfaz con Fyne |
 | `i18n` | Traducciones (`i18n/locales/*.json`) |
 | `winusb` | Instalación de WinUSB en Windows (SetupAPI) |

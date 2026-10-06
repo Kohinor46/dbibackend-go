@@ -5,6 +5,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"runtime"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/google/gousb"
@@ -16,27 +20,92 @@ var ErrNotFound = errors.New("device not found")
 // Windows it has no WinUSB driver yet (see package winusb).
 var ErrNoDriver = errors.New("device found, but its USB driver is not supported (WinUSB needed)")
 
-// Device is an open bulk IN/OUT pair on interface 0 of the Switch.
+// ErrBusy means another program holds the device. On macOS that is usually
+// the system camera service (ptpcamerad) or Android File Transfer, which
+// grab MTP devices as soon as they are connected.
+var ErrBusy = errors.New("device is in use by another program")
+
+// Device is an open bulk IN/OUT pair on one interface of the Switch.
 type Device struct {
-	ctx  *gousb.Context
-	dev  *gousb.Device
-	cfg  *gousb.Config
-	intf *gousb.Interface
-	in   *gousb.InEndpoint
-	out  *gousb.OutEndpoint
+	ctx       *gousb.Context
+	dev       *gousb.Device
+	cfg       *gousb.Config
+	intf      *gousb.Interface
+	in        *gousb.InEndpoint
+	out       *gousb.OutEndpoint
+	maxPacket int
 }
 
-// Open opens the first device with the given VID/PID.
+// target is the interface to claim on a matched device.
+type target struct{ config, intf, alt int }
+
+// selector picks the device and its interface; ok is false for other devices.
+type selector func(desc *gousb.DeviceDesc) (t target, ok bool)
+
+// Open opens the first device with the given VID/PID on interface 0
+// (DBI's "Install title from USB" mode), resetting it first.
 func Open(vid, pid uint16) (*Device, error) {
-	d, err := open(vid, pid, true)
-	if err != nil && !errors.Is(err, ErrNotFound) && !errors.Is(err, ErrNoDriver) {
+	sel := func(desc *gousb.DeviceDesc) (target, bool) {
+		return target{1, 0, 0}, desc.Vendor == gousb.ID(vid) && desc.Product == gousb.ID(pid)
+	}
+	d, err := open(sel, true)
+	if err != nil && !errors.Is(err, ErrNotFound) && !errors.Is(err, ErrNoDriver) && !errors.Is(err, ErrBusy) {
 		// Some platforms invalidate the handle after a reset; retry without it.
-		d, err = open(vid, pid, false)
+		d, err = open(sel, false)
 	}
 	return d, err
 }
 
-func open(vid, pid uint16, reset bool) (_ *Device, err error) {
+// OpenMTP opens the MTP interface of a device from vid (DBI's "MTP
+// responder" mode), skipping the given product IDs.
+func OpenMTP(vid uint16, skipPIDs ...uint16) (*Device, error) {
+	return open(func(desc *gousb.DeviceDesc) (target, bool) {
+		if desc.Vendor != gousb.ID(vid) || slices.Contains(skipPIDs, uint16(desc.Product)) {
+			return target{}, false
+		}
+		return findMTP(desc)
+	}, false)
+}
+
+// findMTP finds an MTP interface: the standard still-image class
+// (6/1/1), or a vendor-specific one with bulk IN/OUT and an interrupt IN
+// endpoint, which is how MTP looks when it isn't declared as a camera.
+func findMTP(desc *gousb.DeviceDesc) (target, bool) {
+	cfgs := slices.Sorted(maps.Keys(desc.Configs))
+	for _, n := range cfgs {
+		for _, intf := range desc.Configs[n].Interfaces {
+			for _, alt := range intf.AltSettings {
+				if isMTP(alt) {
+					return target{n, intf.Number, alt.Alternate}, true
+				}
+			}
+		}
+	}
+	return target{}, false
+}
+
+func isMTP(s gousb.InterfaceSetting) bool {
+	var bulkIn, bulkOut, intrIn bool
+	for _, ep := range s.Endpoints {
+		switch {
+		case ep.TransferType == gousb.TransferTypeBulk && ep.Direction == gousb.EndpointDirectionIn:
+			bulkIn = true
+		case ep.TransferType == gousb.TransferTypeBulk && ep.Direction == gousb.EndpointDirectionOut:
+			bulkOut = true
+		case ep.TransferType == gousb.TransferTypeInterrupt && ep.Direction == gousb.EndpointDirectionIn:
+			intrIn = true
+		}
+	}
+	if !bulkIn || !bulkOut {
+		return false
+	}
+	if s.Class == gousb.ClassPTP && s.SubClass == 1 && s.Protocol == 1 {
+		return true
+	}
+	return s.Class == gousb.ClassVendorSpec && intrIn
+}
+
+func open(sel selector, reset bool) (_ *Device, err error) {
 	d := &Device{ctx: gousb.NewContext()}
 	defer func() {
 		if err != nil {
@@ -44,7 +113,8 @@ func open(vid, pid uint16, reset bool) (_ *Device, err error) {
 		}
 	}()
 
-	if d.dev, err = openFirst(d.ctx, vid, pid); err != nil {
+	var t target
+	if d.dev, t, err = openFirst(d.ctx, sel); err != nil {
 		return nil, err
 	}
 	if reset {
@@ -53,11 +123,11 @@ func open(vid, pid uint16, reset bool) (_ *Device, err error) {
 		}
 	}
 
-	if d.cfg, err = d.dev.Config(1); err != nil {
-		return nil, fmt.Errorf("set configuration: %w", err)
+	if d.cfg, err = d.dev.Config(t.config); err != nil {
+		return nil, fmt.Errorf("set configuration: %w", busy(err))
 	}
-	if d.intf, err = d.cfg.Interface(0, 0); err != nil {
-		return nil, fmt.Errorf("claim interface: %w", err)
+	if d.intf, err = d.cfg.Interface(t.intf, t.alt); err != nil {
+		return nil, fmt.Errorf("claim interface: %w", busy(err))
 	}
 	for _, ep := range d.intf.Setting.Endpoints {
 		if ep.TransferType != gousb.TransferTypeBulk {
@@ -68,6 +138,7 @@ func open(vid, pid uint16, reset bool) (_ *Device, err error) {
 			d.in, err = d.intf.InEndpoint(ep.Number)
 		case ep.Direction == gousb.EndpointDirectionOut && d.out == nil:
 			d.out, err = d.intf.OutEndpoint(ep.Number)
+			d.maxPacket = ep.MaxPacketSize
 		}
 		if err != nil {
 			return nil, err
@@ -82,36 +153,59 @@ func open(vid, pid uint16, reset bool) (_ *Device, err error) {
 	return d, nil
 }
 
-// openFirst opens the first device with vid:pid. Unlike
+// busy marks "another program has the device" errors with ErrBusy. On macOS
+// an exclusive claim by another process reports ACCESS; elsewhere ACCESS
+// means missing permissions (e.g. no udev rule on Linux), so it stays as is.
+func busy(err error) error {
+	if isUSBError(err, gousb.ErrorBusy) || (runtime.GOOS == "darwin" && isUSBError(err, gousb.ErrorAccess)) {
+		return fmt.Errorf("%w (%v)", ErrBusy, err)
+	}
+	return err
+}
+
+// isUSBError matches a libusb error even when gousb only formatted it into
+// the message (claiming an interface uses %v: "failed to claim interface 0
+// on ...: libusb: bad access [code -3]").
+func isUSBError(err error, target gousb.Error) bool {
+	return errors.Is(err, target) || strings.Contains(err.Error(), target.Error())
+}
+
+// openFirst opens the first device sel accepts. Unlike
 // gousb.OpenDeviceWithVIDPID it ignores errors from other devices (e.g. an
 // unreadable descriptor on some hub), which would otherwise turn "not
 // connected" into an open error.
-func openFirst(ctx *gousb.Context, vid, pid uint16) (*gousb.Device, error) {
+func openFirst(ctx *gousb.Context, sel selector) (*gousb.Device, target, error) {
 	found := false
+	var t target
 	devs, err := ctx.OpenDevices(func(desc *gousb.DeviceDesc) bool {
-		if found || desc.Vendor != gousb.ID(vid) || desc.Product != gousb.ID(pid) {
+		if found {
 			return false
 		}
-		found = true
-		return true
+		t, found = sel(desc)
+		return found
 	})
 	switch {
 	case len(devs) > 0:
-		return devs[0], nil
+		return devs[0], t, nil
 	case !found:
-		return nil, ErrNotFound
+		return nil, t, ErrNotFound
 	case errors.Is(err, gousb.ErrorNotSupported):
-		return nil, ErrNoDriver
+		return nil, t, ErrNoDriver
 	default:
-		return nil, fmt.Errorf("open device: %w", err)
+		return nil, t, fmt.Errorf("open device: %w", busy(err))
 	}
 }
 
-// Wait polls every second until the device appears or ctx is done.
+// Wait polls Open every second until the device appears or ctx is done.
 // onWait is called before each sleep (may be nil).
 func Wait(ctx context.Context, vid, pid uint16, onWait func(error)) (*Device, error) {
+	return WaitFor(ctx, func() (*Device, error) { return Open(vid, pid) }, onWait)
+}
+
+// WaitFor polls open every second until it succeeds or ctx is done.
+func WaitFor(ctx context.Context, open func() (*Device, error), onWait func(error)) (*Device, error) {
 	for {
-		d, err := Open(vid, pid)
+		d, err := open()
 		if err == nil {
 			return d, nil
 		}
@@ -133,6 +227,9 @@ func (d *Device) Read(ctx context.Context, buf []byte) (int, error) {
 func (d *Device) Write(ctx context.Context, buf []byte) (int, error) {
 	return d.out.WriteContext(ctx, buf)
 }
+
+// MaxPacketSize is the bulk OUT endpoint's max packet size (mtp.PacketSizer).
+func (d *Device) MaxPacketSize() int { return d.maxPacket }
 
 func (d *Device) Close() error {
 	if d.intf != nil {

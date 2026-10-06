@@ -40,6 +40,8 @@ type ui struct {
 	log      *slog.Logger
 	logLevel *slog.LevelVar
 	logView  *logView
+	mtp      *mtpTab
+	tabs     *container.AppTabs
 
 	// Rebuilt by build() when the language changes.
 	dirEntry   *widget.Entry
@@ -102,6 +104,7 @@ func newUI(a fyne.App, debug bool) *ui {
 	}
 	u.logView = newLogView()
 	u.log = slog.New(&lineHandler{w: io.MultiWriter(os.Stderr, u.logView), level: u.logLevel})
+	u.mtp = newMTPTab(u)
 	return u
 }
 
@@ -216,12 +219,25 @@ func (u *ui) build() {
 	progressBox := container.NewVBox(widget.NewSeparator(), u.curLabel, u.progress)
 	u.resetTransfer()
 
-	top := container.NewVBox(
-		container.NewBorder(nil, nil, nil, langSel, folderRow),
-		statusRow,
-		widget.NewSeparator(),
-	)
-	u.win.SetContent(container.NewPadded(container.NewBorder(top, progressBox, nil, nil, split)))
+	if !mtpSupported {
+		// Only the install view: no tab bar, the language picker ends the folder row.
+		top := container.NewVBox(container.NewBorder(nil, nil, nil, langSel, folderRow), statusRow, widget.NewSeparator())
+		u.win.SetContent(container.NewPadded(container.NewBorder(top, progressBox, nil, nil, split)))
+	} else {
+		top := container.NewVBox(folderRow, statusRow, widget.NewSeparator())
+		install := container.NewBorder(top, progressBox, nil, nil, split)
+		selected := 0
+		if u.tabs != nil {
+			selected = u.tabs.SelectedIndex()
+		}
+		u.tabs = container.NewAppTabs(
+			container.NewTabItemWithIcon(T("tab.install"), theme.DownloadIcon(), install),
+			container.NewTabItemWithIcon(T("tab.mtp"), theme.StorageIcon(), u.mtp.build()),
+		)
+		u.tabs.SelectIndex(selected)
+		// The language picker sits on the tab bar's row, right-aligned.
+		u.win.SetContent(container.NewPadded(container.NewStack(u.tabs, container.NewVBox(container.NewHBox(layout.NewSpacer(), langSel)))))
+	}
 
 	if isDir(dir) {
 		u.setTitles(u.titles)
@@ -230,6 +246,10 @@ func (u *ui) build() {
 	}
 
 	u.win.SetOnDropped(func(_ fyne.Position, uris []fyne.URI) {
+		if u.tabs != nil && u.tabs.SelectedIndex() == 1 {
+			u.mtp.dropped(uris)
+			return
+		}
 		for _, uri := range uris {
 			if isDir(uri.Path()) {
 				u.setDir(uri.Path())
@@ -504,7 +524,7 @@ func (l *logView) Write(p []byte) (int, error) {
 	l.pending = true
 	l.mu.Unlock()
 	if schedule {
-		fyne.Do(l.flush)
+		runOnUI(l.flush)
 	}
 	return len(p), nil
 }

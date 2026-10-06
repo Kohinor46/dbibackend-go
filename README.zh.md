@@ -14,6 +14,7 @@
 - **无需重启**：DBI 完成后，应用会重新等待 Switch 连接。上次使用的文件夹会被记住，启动时服务器会自动运行。
 - **11 种语言**：英语、俄语、西班牙语、意大利语、德语、法语、葡萄牙语、中文、日语、印地语和阿拉伯语。默认跟随系统语言，也可以在窗口中切换。
 - **内置 Windows 驱动安装**：应用检测到未安装驱动的 Switch 时，会提示安装驱动。这取代了使用 Zadig 手动安装的步骤（见下文）。
+- **在 macOS 和 Linux 上通过 MTP 管理文件**：浏览 Switch 的存储，上传、下载和删除文件，无需 Android File Transfer（见下文）。
 - **命令行模式**（`-cli`）：行为与原始脚本一致，便于自动化。
 - **比原版更安全**：Switch 只能请求所选文件夹中的文件。
 
@@ -42,14 +43,32 @@
 
 工作原理：应用为设备分配 Windows 自带、由 Microsoft 签名的 WinUSB 驱动（等同于在设备管理器中执行 **更新驱动程序 → 让我从列表中选取… → WinUsb Device**）。它不会向系统添加任何证书，并且在启用智能应用控制的情况下也能正常工作。
 
+## 通过 MTP 管理文件（macOS 和 Linux）
+
+macOS 没有内置 MTP 支持，因此 DBI 开启 MTP 模式时，Switch 不会出现在 Finder 中；而常用的替代方案 Android File Transfer 也已不再更新。**文件（MTP）** 标签页可以取代它：
+
+1. 在 Switch 上打开 DBI，选择 **Run MTP responder**，然后连接数据线。
+2. 在应用中打开 **文件（MTP）** 标签页，点击 **连接**。
+3. 选择一个存储（SD 卡、NAND、安装目标、存档等），打开文件夹，然后通过 **上传文件…** 或将文件拖到窗口中来上传。你也可以下载和删除文件，以及新建文件夹。
+
+要安装游戏，请将其上传到名称中带有“install”的存储：DBI 会边接收边安装。支持超过 4 GB 的文件。
+
+![文件（MTP）](docs/screenshot-mtp.png)
+
+**“Switch 正被其他程序占用。”** 在 macOS 上，系统相机服务（`ptpcamerad`）会在 MTP 设备连接后立即将其占用。点击 **释放设备**：应用会停止该服务并接管 Switch；macOS 会在需要时自行重新启动该服务。Android File Transfer 也会占用设备，请先退出它。
+
+在 Windows 上，此标签页会被隐藏：文件资源管理器已经能在 MTP 模式下显示 Switch。
+
 ## Linux
 
-安装 udev 规则后，无需 root 权限即可访问 Switch：
+安装 udev 规则后，无需 root 权限即可访问 Switch（该规则同时适用于 USB 安装和 MTP 两种模式）：
 
 ```bash
 sudo cp data/linux/99-dbibackend.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules
 ```
+
+如果 **文件（MTP）** 标签页提示 Switch 正被其他程序占用，可能是桌面环境自动挂载了它（gvfs）：请在文件管理器中将其卸载。
 
 ## 传输速度
 
@@ -103,7 +122,8 @@ make release      # dist/DBI Backend.app and dist/DBI Backend.exe
 | 包 | 用途 |
 |---|---|
 | `dbi` | DBI0 协议（LIST / FILE_RANGE / EXIT）、文件夹扫描、会话统计 |
-| `usbconn` | 通过 libusb（gousb）打开 Switch，批量（bulk）传输 |
+| `usbconn` | 在 USB 安装和 MTP 模式下通过 libusb（gousb）打开 Switch，批量（bulk）传输 |
+| `mtp` | MTP 客户端（基于 USB 的 PTP）：存储、文件夹、上传和下载、超过 4 GB 的文件 |
 | `gui` | Fyne 界面 |
 | `i18n` | 翻译（`i18n/locales/*.json`） |
 | `winusb` | 在 Windows 上安装 WinUSB（SetupAPI） |
