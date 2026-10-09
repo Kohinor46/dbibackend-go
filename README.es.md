@@ -10,12 +10,14 @@ Es una reescritura en Go de [lunixoid/dbibackend](https://github.com/lunixoid/db
 
 ## Características
 
-- **Interfaz gráfica**: selector de carpeta (Finder, Explorador o arrastrar y soltar), lista de archivos encontrados con su tamaño, estado de la conexión, barra de progreso con la velocidad de transferencia y un panel de registro común a todas las pestañas. El panel aparece contraído y muestra solo la última línea; despliégalo cuando lo necesites.
+- **Interfaz gráfica**: selector de carpeta (Finder, Explorador o arrastrar y soltar), lista de archivos encontrados con su tamaño, estado de la conexión, barra de progreso con la velocidad de transferencia y un panel de registro común a todas las pestañas. El panel aparece contraído y muestra solo la última línea; despliégalo cuando lo necesites, copia todo el registro o guárdalo en un archivo.
 - **Sin reinicios**: cuando DBI termina, la aplicación vuelve a esperar a la Switch. Recuerda la última carpeta; la instalación empieza cuando haces clic en **Iniciar**.
 - **11 idiomas**: inglés, ruso, español, italiano, alemán, francés, portugués, chino, japonés, hindi y árabe. El idioma sigue al del sistema y se puede cambiar desde la ventana.
 - **Controlador de Windows integrado**: si la aplicación detecta la Switch sin controlador, te ofrece instalarlo. Esto sustituye el paso manual con Zadig (ver más abajo).
-- **Archivos por MTP en macOS y Linux**: explora los almacenamientos de la Switch, sube archivos y carpetas enteras, y descarga y elimina archivos sin Android File Transfer (ver más abajo).
-- **Archivos por FTP en todos los sistemas**: conéctate al servidor FTP de DBI por Wi-Fi, sin cable, para gestionar la tarjeta SD o instalar juegos (ver más abajo).
+- **Archivos por MTP en macOS y Linux**: explora los almacenamientos de la Switch, sube y descarga archivos y carpetas enteras, elimina archivos y haz copias de seguridad de las partidas guardadas, sin Android File Transfer (ver más abajo).
+- **Archivos por FTP en todos los sistemas**: encuentra la Switch en la red y conéctate al servidor FTP de DBI por Wi-Fi, sin cable, para gestionar la tarjeta SD o instalar juegos (ver más abajo).
+- **Las subidas interrumpidas continúan** donde se quedaron, también después de volver a conectar.
+- **Notificaciones** al terminar una instalación o transferencia larga, y comprobación de nuevas versiones al iniciar.
 - **Ajustes**: apariencia clara u oscura y seis estilos de vista de archivos para las pestañas MTP y FTP.
 - **Modo de línea de comandos** (`-cli`), que se comporta como el script original, para automatizaciones.
 - **Más segura que la original**: la Switch solo puede pedir archivos de la carpeta elegida.
@@ -57,6 +59,12 @@ Para instalar un juego, súbelo a un almacenamiento que tenga «install» en su 
 
 **Al subir una carpeta**, se fusiona con la carpeta del mismo nombre en la Switch (sin distinguir mayúsculas de minúsculas): los archivos con el mismo nombre se reemplazan y todo lo demás que haya en la Switch se conserva. Los archivos de servicio, como `.DS_Store`, se omiten. A los almacenamientos de instalación solo se envían los archivos, sin las carpetas.
 
+**Si una subida se interrumpe** (se ha soltado el cable, se ha caído la conexión), aparece una barra **Continuar**, también después de volver a conectar. Envía lo que falta: los archivos que ya llegaron completos se omiten y el que se estaba enviando se vuelve a enviar.
+
+**Al descargar una carpeta** (con el botón de descarga o con clic derecho), se copia con todo su contenido.
+
+**Copiar partidas guardadas**: cuando DBI muestra su almacenamiento «Saves», este botón copia todas las partidas guardadas de los juegos en una nueva carpeta «DBI saves <fecha>» del ordenador.
+
 ![Archivos (MTP)](docs/screenshot-mtp.png)
 
 **«La Switch está en uso por otro programa».** En macOS, el servicio de cámaras del sistema (`ptpcamerad`) se apropia de los dispositivos MTP en cuanto se conectan. Haz clic en **Liberar dispositivo**: la aplicación detiene el servicio y toma la Switch; macOS vuelve a iniciar el servicio por sí solo cuando lo necesita. Android File Transfer también retiene el dispositivo, así que ciérralo antes.
@@ -68,11 +76,13 @@ En Windows la pestaña está oculta: el Explorador de archivos ya muestra la Swi
 DBI puede ejecutar un servidor FTP por Wi-Fi. La pestaña **FTP** se conecta a él y ofrece el mismo gestor de archivos que la pestaña MTP, incluida la subida de carpetas:
 
 1. En la Switch, abre DBI y elige **Run FTP server**. En la pantalla aparece la dirección de la Switch.
-2. En la aplicación, abre la pestaña **FTP**, introduce la dirección, elige el modo y haz clic en **Conectar**:
+2. En la aplicación, abre la pestaña **FTP**, haz clic en **Buscar** para localizar la Switch en la red (o introduce su dirección), elige el modo y haz clic en **Conectar**:
    - **Tarjeta SD (puerto 5000)**: explora la tarjeta SD, sube archivos y carpetas, descarga y elimina archivos y crea carpetas;
    - **Instalación (puerto 6000)**: sube juegos para instalarlos.
 
-El ordenador y la Switch deben estar en la misma red. El servidor de DBI no pide contraseña; si has configurado una, introdúcela en **Usuario y contraseña**. Por Wi-Fi, las transferencias suelen ser más lentas que por USB.
+El ordenador y la Switch deben estar en la misma red. El servidor de DBI no pide contraseña; si has configurado una, introdúcela en **Usuario y contraseña**. Por Wi-Fi, las transferencias suelen ser más lentas que por USB. Las direcciones a las que te has conectado se guardan en el menú del campo de dirección.
+
+El servidor FTP de DBI no puede guardar nombres con letras no latinas (cirílico, letras con tilde, eñes, etc.): los rechaza o los guarda de forma que no se ven. Antes de una subida así, la aplicación pregunta si quieres renombrar esos archivos y carpetas con letras latinas («Паспорт.pdf» → «Pasport.pdf») u omitirlos.
 
 ![FTP](docs/screenshot-ftp.png)
 
@@ -80,6 +90,7 @@ El ordenador y la Switch deben estar en la misma red. El servidor de DBI no pide
 
 El botón ⚙ junto al selector de idioma abre los ajustes:
 
+- **General**: notificaciones al terminar una instalación o transferencia de más de 10 segundos (**Probar** envía una al momento) y comprobación de nuevas versiones al iniciar. Si hay una, aparece junto a ⚙ un botón con su número.
 - **Apariencia**: como el sistema, clara u oscura.
 - **Vista de archivos** para las pestañas MTP y FTP: clásica, iconos de colores, etiquetas de formato, tabla, dos líneas o mosaico. Una vista previa muestra cada estilo.
 

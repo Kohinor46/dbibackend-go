@@ -2,12 +2,17 @@ package gui
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/spf13/afero"
 )
 
 // fakeDBI mimics DBI's FTP server as seen on a real console: its FEAT, no
@@ -128,5 +133,122 @@ func TestParseMLSD(t *testing.T) {
 	}
 	if len(bad) != 1 || bad[0] != "garbage line" {
 		t.Errorf("bad = %q", bad)
+	}
+}
+
+// stallingFTP accepts an upload, then stops answering without closing
+// anything, like a Switch that went to sleep.
+func stallingFTP(t *testing.T) string {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	t.Cleanup(func() { close(done); ln.Close() })
+	go func() {
+		c, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer c.Close()
+		r := bufio.NewReader(c)
+		say := func(s string) { fmt.Fprintf(c, "%s\r\n", s) }
+		say("220 ready")
+		var data net.Listener
+		for {
+			line, err := r.ReadString('\n')
+			if err != nil {
+				return
+			}
+			cmd, _, _ := strings.Cut(strings.TrimSpace(line), " ")
+			switch strings.ToUpper(cmd) {
+			case "USER":
+				say("230 ok")
+			case "FEAT":
+				say("211 End")
+			case "PASV":
+				data, _ = net.Listen("tcp", "127.0.0.1:0")
+				p := data.Addr().(*net.TCPAddr).Port
+				say(fmt.Sprintf("227 Entering Passive Mode (127,0,0,1,%d,%d).", p/256, p%256))
+			case "CWD":
+				say("250 ok")
+			case "STOR":
+				say("150 ok")
+				dc, err := data.Accept()
+				if err == nil {
+					defer dc.Close()
+				}
+				<-done // silence from now on
+				return
+			default:
+				say("200 ok")
+			}
+		}
+	}()
+	return ln.Addr().String()
+}
+
+func shortFTPLimits(t *testing.T) {
+	d, r, a := ftpDataIdle, ftpReplyWait, ftpAliveWait
+	t.Cleanup(func() { ftpDataIdle, ftpReplyWait, ftpAliveWait = d, r, a })
+	ftpDataIdle, ftpReplyWait, ftpAliveWait = 300*time.Millisecond, 600*time.Millisecond, 300*time.Millisecond
+}
+
+// A server that goes silent mid-upload is reported as a lost connection
+// instead of hanging.
+func TestFTPStalledUpload(t *testing.T) {
+	shortFTPLimits(t)
+	ctx := context.Background()
+	f, err := dialFTP(ctx, stallingFTP(t), "", "", quietLog())
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now()
+	_, err = f.Upload(ctx, "/", "big.nsp", 64<<20, bytes.NewReader(make([]byte, 64<<20)))
+	if !errors.Is(err, errFTPLost) {
+		t.Errorf("err = %v, want errFTPLost", err)
+	}
+	if el := time.Since(start); el > 5*time.Second {
+		t.Errorf("took %v", el)
+	}
+}
+
+// slowReader gives its data in pieces with pauses.
+type slowReader struct {
+	left  int
+	pause time.Duration
+}
+
+func (s *slowReader) Read(p []byte) (int, error) {
+	if s.left == 0 {
+		return 0, io.EOF
+	}
+	time.Sleep(s.pause)
+	n := min(len(p), s.left, 32<<10)
+	s.left -= n
+	return n, nil
+}
+
+// A slow transfer that keeps moving is not cut, however long it takes.
+func TestFTPSlowUploadNotCut(t *testing.T) {
+	shortFTPLimits(t)
+	d := &testFTPDriver{fs: afero.NewMemMapFs()}
+	addr := startFTP(t, d)
+	ctx := context.Background()
+	f, err := dialFTP(ctx, addr, "", "", quietLog())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	size := 32 << 10 * 20 // 20 pieces, 100 ms apart: 2 s, well over the limits
+	if _, err := f.Upload(ctx, "/", "slow.bin", int64(size), &slowReader{left: size, pause: 100 * time.Millisecond}); err != nil {
+		t.Fatal(err)
+	}
+	if st, err := d.fs.Stat("/slow.bin"); err != nil || st.Size() != int64(size) {
+		t.Errorf("slow.bin: %v", err)
+	}
+	if _, err := f.List(ctx, "/"); err != nil {
+		t.Errorf("connection unusable afterwards: %v", err)
 	}
 }

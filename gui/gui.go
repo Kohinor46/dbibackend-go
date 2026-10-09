@@ -22,6 +22,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	fyneLang "fyne.io/fyne/v2/lang"
+	"github.com/ncruces/zenity"
 
 	"github.com/Kohinor46/dbibackend-go/dbi"
 	"github.com/Kohinor46/dbibackend-go/i18n"
@@ -71,6 +72,9 @@ type ui struct {
 	appearance    appearance // light, dark or as the system
 	logOpen       bool       // the shared log panel is expanded
 	logToggle     *widget.Button
+
+	updateTag, updatePage string // a newer release, once found
+	sendNotification      func(*fyne.Notification)
 }
 
 // Run opens the main window and blocks until it is closed.
@@ -94,6 +98,7 @@ func Run(dir string, debug bool) {
 	}
 
 	u.win.Resize(fyne.NewSize(760, 640))
+	u.checkUpdate()
 	u.win.ShowAndRun()
 	if u.cancel != nil {
 		u.cancel()
@@ -105,6 +110,7 @@ func newUI(a fyne.App, debug bool) *ui {
 	if debug {
 		u.logLevel.Set(slog.LevelDebug)
 	}
+	u.sendNotification = a.SendNotification
 	u.logView = newLogView()
 	u.log = slog.New(&lineHandler{w: io.MultiWriter(os.Stderr, u.logView), level: u.logLevel})
 	u.fileStyle = loadFileStyle(a.Preferences())
@@ -228,7 +234,14 @@ func (u *ui) build() {
 	u.tabs.SelectIndex(selected)
 	// Settings and the language picker sit on the tab bar's row, right-aligned.
 	settings := widget.NewButtonWithIcon("", theme.SettingsIcon(), u.showSettings)
-	u.withLog(container.NewStack(u.tabs, container.NewVBox(container.NewHBox(layout.NewSpacer(), settings, langSel))))
+	corner := container.NewHBox(layout.NewSpacer(), settings, langSel)
+	if u.updateTag != "" {
+		// Short, so that it fits on the tab bar's row; the log says more.
+		update := widget.NewButtonWithIcon(u.updateTag, theme.DownloadIcon(), u.openUpdate)
+		update.Importance = widget.HighImportance
+		corner.Objects = append([]fyne.CanvasObject{layout.NewSpacer(), update}, corner.Objects[1:]...)
+	}
+	u.withLog(container.NewStack(u.tabs, container.NewVBox(corner)))
 
 	if isDir(dir) {
 		u.setTitles(u.titles)
@@ -264,13 +277,20 @@ func (u *ui) withLog(main fyne.CanvasObject) {
 	})
 	debug.SetChecked(u.logLevel.Level() == slog.LevelDebug)
 	clear := widget.NewButtonWithIcon("", theme.ContentClearIcon(), u.logView.Clear)
+	var copyBtn *widget.Button
+	copyBtn = widget.NewButtonWithIcon("", theme.ContentCopyIcon(), func() {
+		u.app.Clipboard().SetContent(u.logView.Text())
+		copyBtn.SetIcon(theme.ConfirmIcon()) // a short "copied"
+		time.AfterFunc(1500*time.Millisecond, func() { runOnUI(func() { copyBtn.SetIcon(theme.ContentCopyIcon()) }) })
+	})
+	save := widget.NewButtonWithIcon("", theme.DocumentSaveIcon(), u.pickSaveLog)
 	var render func()
 	u.logToggle = widget.NewButtonWithIcon(T("log.title"), nil, func() {
 		u.logOpen = !u.logOpen
 		render()
 	})
 	u.logToggle.Importance = widget.LowImportance
-	header := container.NewBorder(nil, nil, u.logToggle, container.NewHBox(debug, clear), u.logView.last)
+	header := container.NewBorder(nil, nil, u.logToggle, container.NewHBox(debug, copyBtn, save, clear), u.logView.last)
 	render = func() {
 		if u.logOpen {
 			u.logToggle.SetIcon(theme.MenuDropDownIcon())
@@ -426,6 +446,7 @@ func (u *ui) serveLoop(ctx context.Context, dir string) {
 		u.do(ctx, func() { u.setStatus("status.connected", widget.SuccessImportance) })
 
 		tr := &tracker{}
+		start := time.Now()
 		srv := &dbi.Server{Dir: dir, Log: u.log, OnEvent: func(e dbi.Event) { u.onEvent(ctx, tr, e) }}
 		err = srv.Serve(ctx, dev)
 		dev.Close()
@@ -434,8 +455,12 @@ func (u *ui) serveLoop(ctx context.Context, dir string) {
 		}
 		if err != nil {
 			u.log.Error("Session ended with error", "err", err)
+			u.do(ctx, func() { u.notifyAfter(start, "notify.install_failed", err) })
 		} else {
 			u.log.Info("Session finished")
+			if n := len(tr.finished); n > 0 {
+				u.do(ctx, func() { u.notifyAfter(start, "notify.install_done", n) })
+			}
 		}
 		u.do(ctx, u.resetTransfer)
 
@@ -463,6 +488,7 @@ type tracker struct {
 	bytes     int64
 	speed     float64
 	lastTitle string
+	finished  map[string]bool // titles sent to the end
 }
 
 func (u *ui) onEvent(ctx context.Context, tr *tracker, e dbi.Event) {
@@ -472,6 +498,12 @@ func (u *ui) onEvent(ctx context.Context, tr *tracker, e dbi.Event) {
 	case dbi.ExitEvent:
 		u.do(ctx, u.resetTransfer)
 	case dbi.ProgressEvent:
+		if e.Pos >= e.Title.Size {
+			if tr.finished == nil {
+				tr.finished = map[string]bool{}
+			}
+			tr.finished[e.Title.Name] = true
+		}
 		now := time.Now()
 		if tr.last.IsZero() || e.Title.Name != tr.lastTitle {
 			tr.last, tr.bytes, tr.lastTitle = now, 0, e.Title.Name
@@ -524,7 +556,30 @@ func (u *ui) setStatus(key string, imp widget.Importance) {
 	u.status.Refresh()
 }
 
-// logView is an io.Writer that shows the last lines of the log.
+// pickSaveLog asks where to save the whole log and writes it there.
+func (u *ui) pickSaveLog() {
+	name := "dbibackend-log-" + time.Now().Format("2006-01-02-150405") + ".txt"
+	go func() {
+		dest, err := zenity.SelectFileSave(zenity.Title(i18n.T("log.save")), zenity.Filename(name), zenity.ConfirmOverwrite())
+		if err != nil {
+			if !errors.Is(err, zenity.ErrCanceled) {
+				u.log.Warn("File picker failed", "err", err)
+			}
+			return
+		}
+		runOnUI(func() { u.saveLog(dest) })
+	}()
+}
+
+func (u *ui) saveLog(dest string) {
+	if err := os.WriteFile(dest, []byte(u.logView.Text()+"\n"), 0o644); err != nil {
+		dialog.ShowError(err, u.win)
+		return
+	}
+	u.log.Info("Log saved", "to", dest)
+}
+
+// logView is an io.Writer that keeps the log and shows its last lines.
 type logView struct {
 	mu      sync.Mutex
 	lines   []string
@@ -534,7 +589,10 @@ type logView struct {
 	last    *widget.Label // the latest line, shown while the panel is collapsed
 }
 
-const maxLogLines = 500
+const (
+	maxLogLines  = 500    // shown in the panel
+	maxKeptLines = 20_000 // kept for Copy and Save
+)
 
 func newLogView() *logView {
 	l := &logView{label: widget.NewLabelWithStyle("", fyne.TextAlignLeading, fyne.TextStyle{Monospace: true})}
@@ -548,8 +606,8 @@ func newLogView() *logView {
 func (l *logView) Write(p []byte) (int, error) {
 	l.mu.Lock()
 	l.lines = append(l.lines, strings.Split(strings.TrimRight(string(p), "\n"), "\n")...)
-	if len(l.lines) > maxLogLines {
-		l.lines = l.lines[len(l.lines)-maxLogLines:]
+	if len(l.lines) > maxKeptLines {
+		l.lines = l.lines[len(l.lines)-maxKeptLines:]
 	}
 	// Coalesce bursts of log lines into one re-render of the label.
 	schedule := !l.pending
@@ -563,7 +621,7 @@ func (l *logView) Write(p []byte) (int, error) {
 
 func (l *logView) flush() {
 	l.mu.Lock()
-	text := strings.Join(l.lines, "\n")
+	text := strings.Join(l.lines[max(0, len(l.lines)-maxLogLines):], "\n")
 	last := ""
 	if len(l.lines) > 0 {
 		last = l.lines[len(l.lines)-1]
@@ -573,6 +631,13 @@ func (l *logView) flush() {
 	l.label.SetText(text)
 	l.last.SetText(last)
 	l.scroll.ScrollToBottom()
+}
+
+// Text returns the whole kept log.
+func (l *logView) Text() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return strings.Join(l.lines, "\n")
 }
 
 func (l *logView) Clear() {

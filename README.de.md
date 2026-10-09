@@ -10,12 +10,14 @@ Es handelt sich um eine Neuimplementierung von [lunixoid/dbibackend](https://git
 
 ## Funktionen
 
-- **Grafische Oberfläche**: Ordnerauswahl (Finder, Explorer oder Drag & Drop), Liste der gefundenen Dateien mit Größe, Verbindungsstatus, Fortschrittsbalken mit Übertragungsgeschwindigkeit und ein Protokollbereich, den sich alle Tabs teilen. Der Bereich ist auf die letzte Zeile eingeklappt und lässt sich bei Bedarf aufklappen.
+- **Grafische Oberfläche**: Ordnerauswahl (Finder, Explorer oder Drag & Drop), Liste der gefundenen Dateien mit Größe, Verbindungsstatus, Fortschrittsbalken mit Übertragungsgeschwindigkeit und ein Protokollbereich, den sich alle Tabs teilen. Der Bereich ist auf die letzte Zeile eingeklappt und lässt sich bei Bedarf aufklappen, komplett kopieren oder in einer Datei speichern.
 - **Kein Neustart nötig**: Wenn DBI fertig ist, wartet die App erneut auf die Switch. Der zuletzt verwendete Ordner wird gespeichert; die Installation beginnt, sobald Sie auf **Starten** klicken.
 - **11 Sprachen**: Englisch, Russisch, Spanisch, Italienisch, Deutsch, Französisch, Portugiesisch, Chinesisch, Japanisch, Hindi und Arabisch. Die Sprache richtet sich nach dem System und lässt sich im Fenster ändern.
 - **Integrierter Windows-Treiber**: Erkennt die App die Switch ohne Treiber, bietet sie an, ihn zu installieren. Das ersetzt den manuellen Schritt mit Zadig (siehe unten).
-- **Dateien über MTP unter macOS und Linux**: Speicher der Switch durchsuchen, Dateien und ganze Ordner hochladen, Dateien herunterladen und löschen – ohne Android File Transfer (siehe unten).
-- **Dateien über FTP auf allen Systemen**: Verbindung zum FTP-Server von DBI per WLAN, ohne Kabel – um die SD-Karte zu verwalten oder Spiele zu installieren (siehe unten).
+- **Dateien über MTP unter macOS und Linux**: Speicher der Switch durchsuchen, Dateien und ganze Ordner hoch- und herunterladen, Dateien löschen und Spielstände sichern – ohne Android File Transfer (siehe unten).
+- **Dateien über FTP auf allen Systemen**: die Switch im Netzwerk finden und sich per WLAN, ohne Kabel, mit dem FTP-Server von DBI verbinden – um die SD-Karte zu verwalten oder Spiele zu installieren (siehe unten).
+- **Unterbrochenes Hochladen wird fortgesetzt**, wo es abgebrochen ist – auch nach einer erneuten Verbindung.
+- **Benachrichtigungen**, wenn eine lange Installation oder Übertragung abgeschlossen ist, und Prüfung auf neue Versionen beim Start.
 - **Einstellungen**: helle oder dunkle Darstellung und sechs Stile für die Dateiansicht in den Tabs MTP und FTP.
 - **Kommandozeilenmodus** (`-cli`), der sich wie das Original-Skript verhält – für die Automatisierung.
 - **Sicherer als das Original**: Die Switch kann nur Dateien aus dem gewählten Ordner anfordern.
@@ -57,6 +59,12 @@ Um ein Spiel zu installieren, laden Sie es in einen Speicher hoch, dessen Name �
 
 **Ein hochgeladener Ordner** wird mit dem gleichnamigen Ordner auf der Switch zusammengeführt (Groß- und Kleinschreibung spielt keine Rolle): Dateien mit gleichem Namen werden ersetzt, alles andere auf der Switch bleibt erhalten. Systemdateien wie `.DS_Store` werden übersprungen. In Installationsspeicher werden nur die Dateien gesendet, ohne die Ordner.
 
+**Bricht das Hochladen ab** (Kabel gelöst, Verbindung unterbrochen), erscheint eine Leiste mit **Fortsetzen** – auch nach einer erneuten Verbindung. Damit wird der Rest gesendet: Bereits vollständig übertragene Dateien werden übersprungen, die gerade übertragene Datei wird erneut gesendet.
+
+**Ein heruntergeladener Ordner** (über die Schaltfläche zum Herunterladen oder per Rechtsklick) wird mit seinem gesamten Inhalt kopiert.
+
+**Spielstände sichern**: Zeigt DBI seinen Speicher „Saves“ an, kopiert diese Schaltfläche alle Spielstände in einen neuen Ordner „DBI saves <Datum>“ auf dem Computer.
+
 ![Dateien (MTP)](docs/screenshot-mtp.png)
 
 **„Die Switch wird von einem anderen Programm verwendet.“** Unter macOS belegt der Kameradienst des Systems (`ptpcamerad`) MTP-Geräte, sobald sie angeschlossen werden. Klicken Sie auf **Gerät freigeben**: Die App beendet den Dienst und übernimmt die Switch; macOS startet den Dienst bei Bedarf von selbst wieder. Auch Android File Transfer belegt das Gerät, beenden Sie es also vorher.
@@ -68,11 +76,13 @@ Unter Windows ist der Tab ausgeblendet: Der Datei-Explorer zeigt die Switch im M
 DBI kann einen FTP-Server per WLAN bereitstellen. Der Tab **FTP** verbindet sich damit und bietet denselben Dateimanager wie der MTP-Tab, einschließlich des Hochladens von Ordnern:
 
 1. Öffnen Sie auf der Switch DBI und wählen Sie **Run FTP server**. Auf dem Bildschirm wird die Adresse der Switch angezeigt.
-2. Öffnen Sie in der App den Tab **FTP**, geben Sie die Adresse ein, wählen Sie den Modus und klicken Sie auf **Verbinden**:
+2. Öffnen Sie in der App den Tab **FTP**, klicken Sie auf **Suchen**, um die Switch im Netzwerk zu finden (oder geben Sie ihre Adresse ein), wählen Sie den Modus und klicken Sie auf **Verbinden**:
    - **SD-Karte (Port 5000)**: SD-Karte durchsuchen, Dateien und Ordner hochladen, Dateien herunterladen und löschen, Ordner anlegen;
    - **Installation (Port 6000)**: Spiele hochladen, um sie zu installieren.
 
-Computer und Switch müssen sich im selben Netzwerk befinden. Der Server von DBI verlangt kein Passwort; falls Sie eines festgelegt haben, geben Sie es unter **Benutzername und Passwort** ein. Über WLAN ist die Übertragung meist langsamer als über USB.
+Computer und Switch müssen sich im selben Netzwerk befinden. Der Server von DBI verlangt kein Passwort; falls Sie eines festgelegt haben, geben Sie es unter **Benutzername und Passwort** ein. Über WLAN ist die Übertragung meist langsamer als über USB. Adressen, mit denen Sie sich bereits verbunden haben, bleiben im Menü des Adressfelds gespeichert.
+
+Der FTP-Server von DBI kann keine Namen mit nicht-lateinischen Buchstaben speichern (Kyrillisch, Umlaute, Buchstaben mit Akzenten usw.): Er lehnt sie ab oder speichert sie so, dass sie nicht angezeigt werden. Vor einem solchen Hochladen fragt die App, ob diese Dateien und Ordner mit lateinischen Buchstaben umbenannt („Паспорт.pdf“ → „Pasport.pdf“) oder übersprungen werden sollen.
 
 ![FTP](docs/screenshot-ftp.png)
 
@@ -80,6 +90,7 @@ Computer und Switch müssen sich im selben Netzwerk befinden. Der Server von DBI
 
 Die Schaltfläche ⚙ neben der Sprachauswahl öffnet die Einstellungen:
 
+- **Allgemein**: Benachrichtigungen, wenn eine Installation oder Übertragung von mehr als 10 Sekunden abgeschlossen ist (**Testen** sendet sofort eine), und die Prüfung auf eine neue Version beim Start. Gibt es eine, erscheint neben ⚙ eine Schaltfläche mit ihrer Nummer.
 - **Darstellung**: wie im System, hell oder dunkel.
 - **Dateiansicht** für die Tabs MTP und FTP: klassisch, farbige Symbole, Formatkennzeichen, Tabelle, zweizeilig oder Kacheln. Eine Vorschau zeigt jeden Stil.
 

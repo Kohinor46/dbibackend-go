@@ -121,10 +121,24 @@ func (u *ui) showSettings() {
 	heading := func(key string) *widget.Label {
 		return widget.NewLabelWithStyle(T(key), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	}
-	top := container.NewVBox(heading("settings.appearance"), look, widget.NewSeparator(), heading("settings.file_style"))
+	prefs := u.app.Preferences()
+	pref := func(key, label string) *widget.Check {
+		c := widget.NewCheck(T(label), func(on bool) { prefs.SetBool(key, on) })
+		c.SetChecked(prefs.BoolWithFallback(key, true))
+		return c
+	}
+	testNotify := widget.NewButton(T("settings.notify_test"), func() {
+		u.sendNotification(fyne.NewNotification("DBI Backend", T("notify.test")))
+	})
+	top := container.NewVBox(
+		heading("settings.general"),
+		container.NewBorder(nil, nil, nil, testNotify, pref(prefNotify, "settings.notify")),
+		pref(prefCheckUpdates, "settings.check_updates"),
+		widget.NewSeparator(), heading("settings.appearance"), look,
+		widget.NewSeparator(), heading("settings.file_style"))
 	content := container.NewBorder(top, nil, container.NewVBox(styles), nil, preview)
 	d := dialog.NewCustom(T("settings.title"), T("settings.close"), content, u.win)
-	d.Resize(fyne.NewSize(720, 560))
+	d.Resize(fyne.NewSize(720, 640))
 	d.Show()
 }
 

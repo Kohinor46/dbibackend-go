@@ -10,12 +10,14 @@ It is a Go rewrite of [lunixoid/dbibackend](https://github.com/lunixoid/dbibacke
 
 ## Features
 
-- **Graphical interface**: folder picker (Finder, Explorer, or drag and drop), list of found files with sizes, connection status, progress bar with transfer speed, and a log panel shared by all tabs. The panel is collapsed to its latest line; expand it when you need it.
+- **Graphical interface**: folder picker (Finder, Explorer, or drag and drop), list of found files with sizes, connection status, progress bar with transfer speed, and a log panel shared by all tabs. The panel is collapsed to its latest line; expand it when you need it, copy the whole log, or save it to a file.
 - **No restarts**: after DBI finishes, the app waits for the Switch again. The last folder is remembered; installing starts when you click **Start**.
 - **11 languages**: English, Russian, Spanish, Italian, German, French, Portuguese, Chinese, Japanese, Hindi, and Arabic. The language follows the system and can be changed in the window.
 - **Windows driver built in**: when the app sees the Switch without a driver, it offers to install it. This replaces the manual Zadig step (see below).
-- **Files over MTP on macOS and Linux**: browse the Switch's storages, upload files and whole folders, download and delete files, without Android File Transfer (see below).
-- **Files over FTP on every system**: connect to DBI's FTP server over Wi-Fi, without a cable, to manage the SD card or install games (see below).
+- **Files over MTP on macOS and Linux**: browse the Switch's storages, upload and download files and whole folders, delete files, and back up game saves, without Android File Transfer (see below).
+- **Files over FTP on every system**: find the Switch on the network and connect to DBI's FTP server over Wi-Fi, without a cable, to manage the SD card or install games (see below).
+- **Interrupted uploads continue** where they stopped, also after reconnecting.
+- **Notifications** when a long install or transfer finishes, and a check for new versions at startup.
 - **Settings**: light or dark appearance, and six file view styles for the MTP and FTP tabs.
 - **Command-line mode** (`-cli`) that behaves like the original script, for automation.
 - **Safer than the original**: the Switch can only request files from the chosen folder.
@@ -57,6 +59,12 @@ To install a game, upload it to a storage with "install" in its name: DBI instal
 
 **Uploading a folder** merges it into the folder with the same name on the Switch (letter case doesn't matter): files with the same names are replaced, and everything else on the Switch stays. Service files such as `.DS_Store` are skipped. Into install storages only the files are sent, without the folders.
 
+**If an upload breaks off** (the cable came out, the connection dropped), a **Continue** bar appears, also after reconnecting. It sends the rest: files that already arrived whole are skipped, and the file that was being sent is sent again.
+
+**Downloading a folder** (the download button or a right-click) copies it with everything inside.
+
+**Back up saves**: when DBI shows its "Saves" storage, this button copies all game saves into a new "DBI saves <date>" folder on the computer.
+
 ![Files (MTP)](docs/screenshot-mtp.png)
 
 **"The Switch is used by another program."** On macOS the system camera service (`ptpcamerad`) grabs MTP devices as soon as they are connected. Click **Free the device**: the app stops the service and takes the Switch; macOS starts the service again on its own when it's needed. Android File Transfer also holds the device, so quit it first.
@@ -68,11 +76,13 @@ On Windows the tab is hidden: Explorer already shows the Switch in MTP mode.
 DBI can run an FTP server over Wi-Fi. The **FTP** tab connects to it and offers the same file manager as the MTP tab, including folder uploads:
 
 1. On the Switch, open DBI and choose **Run FTP server**. The screen shows the Switch's address.
-2. In the app, open the **FTP** tab, enter the address, choose the mode, and click **Connect**:
+2. In the app, open the **FTP** tab, click **Find** to look for the Switch on the network (or enter its address), choose the mode, and click **Connect**:
    - **SD card (port 5000)**: browse the SD card, upload files and folders, download and delete files, create folders;
    - **Install (port 6000)**: upload games to install them.
 
-The computer and the Switch must be on the same network. DBI's server lets you in without a password; if you have set one, enter it under **Login and password**. Over Wi-Fi, transfers are usually slower than over USB.
+The computer and the Switch must be on the same network. DBI's server lets you in without a password; if you have set one, enter it under **Login and password**. Over Wi-Fi, transfers are usually slower than over USB. The addresses you connected to are kept in the address field's menu.
+
+DBI's FTP server can't save names with non-Latin letters (Cyrillic, accented letters and so on): it refuses them or saves them so that they don't show up. Before such an upload, the app asks whether to rename those files and folders with Latin letters ("Паспорт.pdf" → "Pasport.pdf") or to skip them.
 
 ![FTP](docs/screenshot-ftp.png)
 
@@ -80,6 +90,7 @@ The computer and the Switch must be on the same network. DBI's server lets you i
 
 The ⚙ button next to the language picker opens the settings:
 
+- **General**: notifications when an install or transfer longer than 10 seconds finishes (**Test** sends one right away), and the check for a new version at startup. When there is one, a button with its number appears next to ⚙.
 - **Appearance**: as in the system, light, or dark.
 - **File view** for the MTP and FTP tabs: classic, coloured icons, format badges, table, two lines, or tiles. A preview shows each style.
 

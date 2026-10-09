@@ -7,6 +7,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -23,6 +24,7 @@ const (
 	ftpPortInstall = 6000
 
 	prefFTPHost    = "ftpHost"
+	prefFTPHosts   = "ftpHosts" // recent addresses, newest first
 	prefFTPInstall = "ftpInstall"
 	prefFTPUser    = "ftpUser"
 )
@@ -46,12 +48,14 @@ type ftpTab struct {
 	closeFS    func()
 	install    bool // install port (6000) instead of SD card (5000)
 	connecting context.CancelFunc
+	searching  bool
 	statusID   string
 	statusAr   []any
 	statusIm   widget.Importance
 
 	// Widgets, rebuilt by build().
-	host       *widget.Entry
+	host       *widget.SelectEntry // the address, with the recent ones in its menu
+	searchBtn  *widget.Button
 	mode       *widget.RadioGroup
 	user       *widget.Entry
 	pass       *widget.Entry
@@ -72,7 +76,7 @@ func (t *ftpTab) build() fyne.CanvasObject {
 	if t.host != nil {
 		host = t.host.Text // keep what was typed across a language change
 	}
-	t.host = widget.NewEntry()
+	t.host = widget.NewSelectEntry(prefs.StringList(prefFTPHosts))
 	t.host.SetPlaceHolder(T("ftp.host_placeholder"))
 	t.host.SetText(host)
 	t.host.OnSubmitted = func(string) { t.toggleConnect() }
@@ -104,6 +108,7 @@ func (t *ftpTab) build() fyne.CanvasObject {
 	)))
 
 	t.connectBtn = widget.NewButtonWithIcon("", theme.LoginIcon(), t.toggleConnect)
+	t.searchBtn = widget.NewButtonWithIcon(T("ftp.search"), theme.SearchIcon(), t.search)
 	t.status = widget.NewLabel("")
 	t.status.TextStyle.Bold = true
 	t.status.Truncation = fyne.TextTruncateEllipsis
@@ -111,7 +116,7 @@ func (t *ftpTab) build() fyne.CanvasObject {
 	hint.Wrapping = fyne.TextWrapWord
 
 	content := t.b.build(
-		container.NewBorder(nil, nil, widget.NewLabel(T("ftp.host")), t.connectBtn, t.host),
+		container.NewBorder(nil, nil, widget.NewLabel(T("ftp.host")), container.NewHBox(t.searchBtn, t.connectBtn), t.host),
 		t.mode,
 		hint,
 		login,
@@ -139,12 +144,17 @@ func (t *ftpTab) render() {
 	}
 	t.connectBtn.Refresh()
 	editable := t.fs == nil && t.connecting == nil
-	for _, e := range []*widget.Entry{t.host, t.user, t.pass} {
+	for _, e := range []fyne.Disableable{t.host, t.user, t.pass} {
 		if editable {
 			e.Enable()
 		} else {
 			e.Disable()
 		}
+	}
+	if editable && !t.searching {
+		t.searchBtn.Enable()
+	} else {
+		t.searchBtn.Disable()
 	}
 	t.status.SetText(T(t.statusID, t.statusAr...))
 	t.status.Importance = t.statusIm
@@ -202,6 +212,7 @@ func (t *ftpTab) connect() {
 	prefs.SetString(prefFTPUser, strings.TrimSpace(t.user.Text))
 
 	addr, user, pass := t.address(), strings.TrimSpace(t.user.Text), t.pass.Text
+	host := strings.TrimSpace(t.host.Text)
 	install := t.installMode()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.connecting = cancel
@@ -219,6 +230,9 @@ func (t *ftpTab) connect() {
 				return
 			}
 			t.u.log.Info("FTP connected", "addr", addr, "install", install)
+			recent := rememberHost(prefs.StringList(prefFTPHosts), host)
+			prefs.SetStringList(prefFTPHosts, recent)
+			t.host.SetOptions(recent)
 			t.fs, t.closeFS = fs, closeFS
 			t.setStatus("mtp.connected", widget.SuccessImportance, addr)
 			root := rRoot{ID: "/", Name: i18n.T("ftp.mode_sd")}
@@ -241,4 +255,46 @@ func (t *ftpTab) disconnect() {
 	t.fs, t.closeFS = nil, nil
 	t.b.close()
 	t.setStatus("mtp.disconnected", widget.MediumImportance)
+}
+
+// search looks for a Switch running DBI's FTP server on the local network
+// and fills in its address; with several, it asks which one.
+func (t *ftpTab) search() {
+	if t.searching || t.fs != nil || t.connecting != nil {
+		return
+	}
+	t.searching = true
+	t.setStatus("ftp.searching", widget.WarningImportance)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		found := findSwitches(ctx)
+		runOnUI(func() {
+			t.searching = false
+			t.u.log.Info("FTP search finished", "found", strings.Join(found, ", "))
+			t.setStatus("mtp.disconnected", widget.MediumImportance)
+			switch len(found) {
+			case 0:
+				dialog.ShowInformation(i18n.T("ftp.search"), i18n.T("ftp.not_found"), t.u.win)
+			case 1:
+				t.host.SetText(found[0])
+			default:
+				t.choose(found)
+			}
+		})
+	}()
+}
+
+// choose asks which of the found Switches to use.
+func (t *ftpTab) choose(hosts []string) {
+	pick := widget.NewRadioGroup(hosts, nil)
+	pick.Required = true
+	pick.SetSelected(hosts[0])
+	dialog.ShowCustomConfirm(i18n.T("ftp.search"), i18n.T("ftp.use"), i18n.T("cancel"),
+		container.NewVBox(widget.NewLabel(i18n.T("ftp.found_several")), pick),
+		func(ok bool) {
+			if ok {
+				t.host.SetText(pick.Selected)
+			}
+		}, t.u.win)
 }

@@ -10,12 +10,14 @@ Un'app desktop per installare giochi via USB su una Nintendo Switch con [DBI](ht
 
 ## Funzionalità
 
-- **Interfaccia grafica**: selezione della cartella (Finder, Esplora file o trascinamento), elenco dei file trovati con le dimensioni, stato della connessione, barra di avanzamento con velocità di trasferimento e un pannello del registro condiviso da tutte le schede. Il pannello è compresso sull'ultima riga; espandilo quando ti serve.
+- **Interfaccia grafica**: selezione della cartella (Finder, Esplora file o trascinamento), elenco dei file trovati con le dimensioni, stato della connessione, barra di avanzamento con velocità di trasferimento e un pannello del registro condiviso da tutte le schede. Il pannello è compresso sull'ultima riga; espandilo quando ti serve, copia l'intero registro o salvalo in un file.
 - **Nessun riavvio**: quando DBI ha finito, l'app attende di nuovo la Switch. L'ultima cartella viene ricordata; l'installazione parte quando fai clic su **Avvia**.
 - **11 lingue**: inglese, russo, spagnolo, italiano, tedesco, francese, portoghese, cinese, giapponese, hindi e arabo. La lingua segue quella del sistema e si può cambiare dalla finestra.
 - **Driver per Windows integrato**: se l'app rileva la Switch senza driver, propone di installarlo. Questo sostituisce il passaggio manuale con Zadig (vedi sotto).
-- **File via MTP su macOS e Linux**: sfoglia le memorie della Switch, carica file e intere cartelle, scarica ed elimina file, senza Android File Transfer (vedi sotto).
-- **File via FTP su tutti i sistemi**: connettiti al server FTP di DBI via Wi-Fi, senza cavo, per gestire la scheda SD o installare giochi (vedi sotto).
+- **File via MTP su macOS e Linux**: sfoglia le memorie della Switch, carica e scarica file e intere cartelle, elimina file e fai il backup dei salvataggi dei giochi, senza Android File Transfer (vedi sotto).
+- **File via FTP su tutti i sistemi**: trova la Switch nella rete e connettiti al server FTP di DBI via Wi-Fi, senza cavo, per gestire la scheda SD o installare giochi (vedi sotto).
+- **I caricamenti interrotti riprendono** da dove si erano fermati, anche dopo la riconnessione.
+- **Notifiche** alla fine di un'installazione o di un trasferimento lungo e controllo di nuove versioni all'avvio.
 - **Impostazioni**: aspetto chiaro o scuro e sei stili di vista dei file per le schede MTP e FTP.
 - **Modalità a riga di comando** (`-cli`) che si comporta come lo script originale, per l'automazione.
 - **Più sicura dell'originale**: la Switch può richiedere solo file dalla cartella scelta.
@@ -57,6 +59,12 @@ Per installare un gioco, caricalo in una memoria che abbia «install» nel nome:
 
 **Quando carichi una cartella**, il suo contenuto viene unito a quello della cartella con lo stesso nome sulla Switch (maiuscole e minuscole non contano): i file con lo stesso nome vengono sostituiti e tutto il resto sulla Switch rimane com'è. I file di servizio come `.DS_Store` vengono saltati. Nelle memorie di installazione vengono inviati solo i file, senza le cartelle.
 
+**Se un caricamento si interrompe** (il cavo si è staccato, la connessione è caduta), compare una barra **Continua**, anche dopo la riconnessione. Invia il resto: i file già arrivati per intero vengono saltati e quello che si stava inviando viene inviato di nuovo.
+
+**Quando scarichi una cartella** (con il pulsante di download o con un clic destro), viene copiata con tutto il suo contenuto.
+
+**Backup dei salvataggi**: quando DBI mostra la sua memoria «Saves», questo pulsante copia tutti i salvataggi dei giochi in una nuova cartella «DBI saves <data>» sul computer.
+
 ![File (MTP)](docs/screenshot-mtp.png)
 
 **«La Switch è in uso da parte di un altro programma».** Su macOS il servizio fotocamere di sistema (`ptpcamerad`) si appropria dei dispositivi MTP appena vengono collegati. Fai clic su **Libera dispositivo**: l'app arresta il servizio e prende la Switch; macOS riavvia il servizio da solo quando serve. Anche Android File Transfer tiene occupato il dispositivo, quindi chiudilo prima.
@@ -68,11 +76,13 @@ Su Windows la scheda è nascosta: Esplora file mostra già la Switch in modalit�
 DBI può avviare un server FTP via Wi-Fi. La scheda **FTP** si connette a questo server e offre lo stesso file manager della scheda MTP, compreso il caricamento di cartelle:
 
 1. Sulla Switch, apri DBI e scegli **Run FTP server**. Sullo schermo compare l'indirizzo della Switch.
-2. Nell'app, apri la scheda **FTP**, inserisci l'indirizzo, scegli la modalità e fai clic su **Connetti**:
+2. Nell'app, apri la scheda **FTP**, fai clic su **Cerca** per trovare la Switch nella rete (oppure inserisci il suo indirizzo), scegli la modalità e fai clic su **Connetti**:
    - **Scheda SD (porta 5000)**: sfoglia la scheda SD, carica file e cartelle, scarica ed elimina file, crea cartelle;
    - **Installazione (porta 6000)**: carica i giochi per installarli.
 
-Il computer e la Switch devono essere sulla stessa rete. Il server di DBI non richiede una password; se ne hai impostata una, inseriscila in **Nome utente e password**. Via Wi-Fi i trasferimenti sono di solito più lenti che via USB.
+Il computer e la Switch devono essere sulla stessa rete. Il server di DBI non richiede una password; se ne hai impostata una, inseriscila in **Nome utente e password**. Via Wi-Fi i trasferimenti sono di solito più lenti che via USB. Gli indirizzi a cui ti sei connesso restano nel menu del campo dell'indirizzo.
+
+Il server FTP di DBI non riesce a salvare nomi con lettere non latine (cirillico, lettere accentate e così via): li rifiuta o li salva in modo che non risultino visibili. Prima di un caricamento del genere, l'app chiede se rinominare questi file e cartelle con lettere latine («Паспорт.pdf» → «Pasport.pdf») o saltarli.
 
 ![FTP](docs/screenshot-ftp.png)
 
@@ -80,6 +90,7 @@ Il computer e la Switch devono essere sulla stessa rete. Il server di DBI non ri
 
 Il pulsante ⚙ accanto alla scelta della lingua apre le impostazioni:
 
+- **Generali**: notifiche quando termina un'installazione o un trasferimento durato più di 10 secondi (**Prova** ne invia una subito) e controllo di nuove versioni all'avvio. Se ce n'è una, accanto a ⚙ compare un pulsante con il suo numero.
 - **Aspetto**: come il sistema, chiaro o scuro.
 - **Vista dei file** per le schede MTP e FTP: classica, icone colorate, etichette di formato, tabella, due righe o riquadri. Un'anteprima mostra ogni stile.
 

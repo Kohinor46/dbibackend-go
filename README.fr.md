@@ -10,12 +10,14 @@ C’est une réécriture en Go de [lunixoid/dbibackend](https://github.com/lunix
 
 ## Fonctionnalités
 
-- **Interface graphique** : choix du dossier (Finder, Explorateur ou glisser-déposer), liste des fichiers trouvés avec leur taille, état de la connexion, barre de progression avec vitesse de transfert, et panneau de journal commun à tous les onglets. Le panneau est réduit à sa dernière ligne ; dépliez-le quand vous en avez besoin.
+- **Interface graphique** : choix du dossier (Finder, Explorateur ou glisser-déposer), liste des fichiers trouvés avec leur taille, état de la connexion, barre de progression avec vitesse de transfert, et panneau de journal commun à tous les onglets. Le panneau est réduit à sa dernière ligne ; dépliez-le quand vous en avez besoin, copiez tout le journal ou enregistrez-le dans un fichier.
 - **Aucun redémarrage** : quand DBI a terminé, l’application attend de nouveau la Switch. Le dernier dossier est mémorisé ; l’installation commence lorsque vous cliquez sur **Démarrer**.
 - **11 langues** : anglais, russe, espagnol, italien, allemand, français, portugais, chinois, japonais, hindi et arabe. La langue suit celle du système et peut être changée dans la fenêtre.
 - **Pilote Windows intégré** : lorsque l’application détecte la Switch sans pilote, elle propose de l’installer. Cela remplace l’étape manuelle avec Zadig (voir ci-dessous).
-- **Fichiers via MTP sous macOS et Linux** : parcourez les stockages de la Switch, envoyez des fichiers et des dossiers entiers, téléchargez et supprimez des fichiers, sans Android File Transfer (voir ci-dessous).
-- **Fichiers via FTP sur tous les systèmes** : connectez-vous au serveur FTP de DBI en Wi-Fi, sans câble, pour gérer la carte SD ou installer des jeux (voir ci-dessous).
+- **Fichiers via MTP sous macOS et Linux** : parcourez les stockages de la Switch, envoyez et téléchargez des fichiers et des dossiers entiers, supprimez des fichiers et faites une copie des sauvegardes de jeu, sans Android File Transfer (voir ci-dessous).
+- **Fichiers via FTP sur tous les systèmes** : trouvez la Switch sur le réseau et connectez-vous au serveur FTP de DBI en Wi-Fi, sans câble, pour gérer la carte SD ou installer des jeux (voir ci-dessous).
+- **Les envois interrompus reprennent** là où ils se sont arrêtés, y compris après une reconnexion.
+- **Notifications** à la fin d’une longue installation ou d’un long transfert, et recherche de nouvelles versions au démarrage.
 - **Paramètres** : apparence claire ou sombre, et six styles d’affichage des fichiers pour les onglets MTP et FTP.
 - **Mode ligne de commande** (`-cli`), qui se comporte comme le script d’origine, pour l’automatisation.
 - **Plus sûr que l’original** : la Switch ne peut demander que des fichiers du dossier choisi.
@@ -57,6 +59,12 @@ Pour installer un jeu, envoyez-le vers un stockage dont le nom contient « inst
 
 **Un dossier envoyé est fusionné** avec le dossier du même nom sur la Switch (la casse n’a pas d’importance) : les fichiers portant le même nom sont remplacés, et tout le reste sur la Switch est conservé. Les fichiers techniques comme `.DS_Store` sont ignorés. Vers les stockages d’installation, seuls les fichiers sont envoyés, sans les dossiers.
 
+**Si un envoi est interrompu** (câble débranché, connexion perdue), une barre avec le bouton **Reprendre** apparaît, y compris après une reconnexion. Ce bouton envoie le reste : les fichiers déjà arrivés en entier sont ignorés, et le fichier qui était en cours d’envoi est renvoyé.
+
+**Télécharger un dossier** (avec le bouton de téléchargement ou par un clic droit) le copie avec tout son contenu.
+
+**Copier les sauvegardes** : lorsque DBI affiche son stockage « Saves », ce bouton copie toutes les sauvegardes de jeu dans un nouveau dossier « DBI saves <date> » sur l’ordinateur.
+
 ![Fichiers (MTP)](docs/screenshot-mtp.png)
 
 **« La Switch est utilisée par un autre programme. »** Sous macOS, le service caméra du système (`ptpcamerad`) s’empare des appareils MTP dès leur branchement. Cliquez sur **Libérer l’appareil** : l’application arrête le service et prend la Switch ; macOS relance le service de lui-même lorsqu’il en a besoin. Android File Transfer bloque aussi l’appareil : quittez-le d’abord.
@@ -68,11 +76,13 @@ Sous Windows, l’onglet est masqué : l’Explorateur de fichiers affiche déj
 DBI peut lancer un serveur FTP en Wi-Fi. L’onglet **FTP** s’y connecte et offre le même gestionnaire de fichiers que l’onglet MTP, y compris l’envoi de dossiers :
 
 1. Sur la Switch, ouvrez DBI et choisissez **Run FTP server**. L’adresse de la Switch s’affiche à l’écran.
-2. Dans l’application, ouvrez l’onglet **FTP**, saisissez l’adresse, choisissez le mode et cliquez sur **Connecter** :
+2. Dans l’application, ouvrez l’onglet **FTP**, cliquez sur **Rechercher** pour trouver la Switch sur le réseau (ou saisissez son adresse), choisissez le mode et cliquez sur **Connecter** :
    - **Carte SD (port 5000)** : parcourez la carte SD, envoyez des fichiers et des dossiers, téléchargez et supprimez des fichiers, créez des dossiers ;
    - **Installation (port 6000)** : envoyez des jeux pour les installer.
 
-L’ordinateur et la Switch doivent être sur le même réseau. Le serveur de DBI ne demande pas de mot de passe ; si vous en avez défini un, saisissez-le dans **Identifiant et mot de passe**. En Wi-Fi, les transferts sont généralement plus lents qu’en USB.
+L’ordinateur et la Switch doivent être sur le même réseau. Le serveur de DBI ne demande pas de mot de passe ; si vous en avez défini un, saisissez-le dans **Identifiant et mot de passe**. En Wi-Fi, les transferts sont généralement plus lents qu’en USB. Les adresses auxquelles vous vous êtes connecté sont conservées dans le menu du champ d’adresse.
+
+Le serveur FTP de DBI ne peut pas enregistrer les noms contenant des lettres non latines (cyrillique, lettres accentuées, etc.) : il les refuse ou les enregistre de telle sorte qu’ils n’apparaissent pas. Avant un tel envoi, l’application propose de renommer ces fichiers et dossiers en lettres latines (« Паспорт.pdf » → « Pasport.pdf ») ou de les ignorer.
 
 ![FTP](docs/screenshot-ftp.png)
 
@@ -80,6 +90,7 @@ L’ordinateur et la Switch doivent être sur le même réseau. Le serveur de DB
 
 Le bouton ⚙ à côté du choix de la langue ouvre les paramètres :
 
+- **Général** : notifications à la fin d’une installation ou d’un transfert de plus de 10 secondes (**Tester** en envoie une immédiatement), et recherche d’une nouvelle version au démarrage. Lorsqu’elle est disponible, un bouton indiquant son numéro apparaît à côté de ⚙.
 - **Apparence** : comme le système, clair ou sombre.
 - **Affichage des fichiers** pour les onglets MTP et FTP : classique, icônes colorées, badges de format, tableau, deux lignes ou mosaïque. Un aperçu montre chaque style.
 

@@ -11,7 +11,8 @@ set -eu
 LIBUSB_VERSION=${LIBUSB_VERSION:-1.0.30}
 APP_NAME="DBI Backend"
 APP_ID=com.dbibackend.gui
-APP_VERSION=${APP_VERSION:-1.2.0}
+# The version comes from gui/update.go (const Version).
+APP_VERSION=${APP_VERSION:-$(sed -n 's/^const Version = "\(.*\)"$/\1/p' "$(dirname "$0")/../gui/update.go")}
 MACOS_MIN=12.0
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)

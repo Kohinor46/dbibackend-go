@@ -35,7 +35,10 @@ type fakeEntry struct {
 	data []byte
 }
 
-const sdCard uint32 = 0x00010001
+const (
+	sdCard       uint32 = 0x00010001
+	savesStorage uint32 = 0x00070001
+)
 
 func newFakeClient() *fakeClient {
 	f := &fakeClient{objects: map[uint32]*fakeEntry{}, next: 1}
@@ -46,9 +49,13 @@ func newFakeClient() *fakeClient {
 }
 
 func (f *fakeClient) add(parent uint32, name string, folder bool, data []byte) uint32 {
+	return f.addTo(sdCard, parent, name, folder, data)
+}
+
+func (f *fakeClient) addTo(storage, parent uint32, name string, folder bool, data []byte) uint32 {
 	h := f.next
 	f.next++
-	o := mtp.Object{Handle: h, Size: uint64(len(data)), Info: mtp.ObjectInfo{StorageID: sdCard, Filename: name, Parent: parent}}
+	o := mtp.Object{Handle: h, Size: uint64(len(data)), Info: mtp.ObjectInfo{StorageID: storage, Filename: name, Parent: parent}}
 	if folder {
 		o.Info.Format = mtp.FormatAssociation
 	}
@@ -77,6 +84,7 @@ func (f *fakeClient) Storages(context.Context) ([]mtp.Storage, error) {
 	return []mtp.Storage{
 		{ID: sdCard, Info: mtp.StorageInfo{Description: "SD Card", MaxCapacity: 256 << 30, FreeSpace: 100 << 30}},
 		{ID: 0x00020001, Info: mtp.StorageInfo{Description: "SD Card install"}},
+		{ID: savesStorage, Info: mtp.StorageInfo{Description: "7: Saves"}},
 	}, nil
 }
 
@@ -199,7 +207,7 @@ func TestMTPTab(t *testing.T) {
 	if got := names(m.b.items); len(got) != 2 || got[0] != "Games" || got[1] != "b.nsp" {
 		t.Fatalf("root = %v (folders first)", got)
 	}
-	if len(m.b.rootSel.Options) != 2 {
+	if len(m.b.rootSel.Options) != 3 {
 		t.Errorf("storages = %v", m.b.rootSel.Options)
 	}
 

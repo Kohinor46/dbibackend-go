@@ -60,6 +60,7 @@ type uploadStats struct {
 	uploaded int // files sent (including replaced ones)
 	replaced int // files that replaced one with the same name
 	skipped  int // files or folders not sent because of a file/folder name clash
+	present  int // resuming: files already on the Switch, left as they are
 }
 
 // uploader merges local files and folders into a folder on the device:
@@ -67,10 +68,20 @@ type uploadStats struct {
 // nothing else on the device is touched. Names match case-insensitively,
 // like on the Switch's FAT32/exFAT storage.
 type uploader struct {
-	ctx      context.Context
-	fs       remoteFS
-	flat     bool // upload all files straight into root, without folders
-	log      *slog.Logger
+	ctx  context.Context
+	fs   remoteFS
+	flat bool // upload all files straight into root, without folders
+	log  *slog.Logger
+
+	// resume continues an interrupted upload: files already on the Switch
+	// with the same size are kept, except redo, the file that was being
+	// sent when it broke (over MTP it can have its full size but not all
+	// of its data).
+	resume bool
+	redo   string
+
+	names    nameMode                     // names the backend can't store
+	assigned map[string]map[string]string // namesLatin: remote folder ID → lowercased name → its local rel
 	progress func(done int64)
 	onFile   func(name string, n, total int)
 
@@ -126,10 +137,22 @@ func (u *uploader) run(items []localItem) error {
 			}
 			parentRel = ""
 		}
+		if u.names == namesSkip && !hasLatinPath(it.rel) {
+			u.log.Warn("Skipped: the name has non-Latin letters", "name", it.rel)
+			u.stats.skipped++
+			if !it.dir {
+				u.done += it.size
+				u.progress(u.done)
+			}
+			continue
+		}
 		parent, ok := u.folders[parentRel]
 		if !ok { // its folder was skipped because of a name clash
 			u.stats.skipped++
 			continue
+		}
+		if u.names == namesLatin {
+			name = u.latin(parent, name, it.rel)
 		}
 		children, err := u.list(parent)
 		if err != nil {
@@ -165,6 +188,12 @@ func (u *uploader) run(items []localItem) error {
 			u.progress(u.done)
 			continue
 		}
+		if exists && u.resume && existing.Size == it.size && it.rel != u.redo {
+			u.stats.present++
+			u.done += it.size
+			u.progress(u.done)
+			continue
+		}
 		if exists {
 			// Neither MTP nor DBI's FTP overwrite in place reliably: remove
 			// the old file, then send the new one.
@@ -180,9 +209,38 @@ func (u *uploader) run(items []localItem) error {
 		}
 		children[strings.ToLower(name)] = rEntry{ID: id, Name: name, Size: it.size}
 		u.stats.uploaded++
-		u.log.Info("Uploaded", "file", it.rel, "size", it.size, "replaced", exists)
+		if name != path.Base(it.rel) {
+			u.log.Info("Uploaded", "file", it.rel, "as", name, "size", it.size, "replaced", exists)
+		} else {
+			u.log.Info("Uploaded", "file", it.rel, "size", it.size, "replaced", exists)
+		}
 	}
 	return nil
+}
+
+// latin returns the Latin name rel gets in the remote folder parent,
+// numbered if another item of this upload already got it.
+func (u *uploader) latin(parent, name, rel string) string {
+	if !isLatinName(name) {
+		name = latinName(name)
+	}
+	if u.assigned == nil {
+		u.assigned = map[string]map[string]string{}
+	}
+	taken := u.assigned[parent]
+	if taken == nil {
+		taken = map[string]string{}
+		u.assigned[parent] = taken
+	}
+	base := name
+	for n := 2; ; n++ {
+		if r, ok := taken[strings.ToLower(name)]; !ok || r == rel {
+			break
+		}
+		name = numbered(base, n)
+	}
+	taken[strings.ToLower(name)] = rel
+	return name
 }
 
 func (u *uploader) send(it localItem, parent, name string) (string, error) {

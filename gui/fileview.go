@@ -198,7 +198,7 @@ func (t *tapBox) TappedSecondary(e *fyne.PointEvent) {
 	}
 }
 
-// menu is the entry's context menu: open or download, and delete.
+// menu is the entry's context menu: open (folders), download, delete.
 func (h viewHost) menu(e rEntry) *fyne.Menu {
 	guard := func(f func(rEntry)) func() {
 		return func() {
@@ -207,15 +207,19 @@ func (h viewHost) menu(e rEntry) *fyne.Menu {
 			}
 		}
 	}
-	first := fyne.NewMenuItem(i18n.T("mtp.download"), guard(h.download))
-	first.Icon = theme.DownloadIcon()
-	if e.Dir {
-		first = fyne.NewMenuItem(i18n.T("mtp.open"), guard(h.enter))
-		first.Icon = theme.FolderOpenIcon()
+	item := func(key string, icon fyne.Resource, f func(rEntry)) *fyne.MenuItem {
+		it := fyne.NewMenuItem(i18n.T(key), guard(f))
+		it.Icon = icon
+		return it
 	}
-	del := fyne.NewMenuItem(i18n.T("mtp.delete"), guard(h.delete))
-	del.Icon = theme.DeleteIcon()
-	return fyne.NewMenu("", first, del)
+	var items []*fyne.MenuItem
+	if e.Dir {
+		items = append(items, item("mtp.open", theme.FolderOpenIcon(), h.enter))
+	}
+	items = append(items,
+		item("mtp.download", theme.DownloadIcon(), h.download),
+		item("mtp.delete", theme.DeleteIcon(), h.delete))
+	return fyne.NewMenu("", items...)
 }
 
 func (h viewHost) showMenu(e rEntry, pos fyne.Position, on fyne.CanvasObject) {
@@ -260,13 +264,11 @@ func newActions(withSize, withChevron bool) *actions {
 
 func (a *actions) update(h viewHost, e rEntry) {
 	a.del.OnTapped = func() { h.delete(e) }
+	a.dl.OnTapped = func() { h.download(e) } // a folder is downloaded with its contents
 	if e.Dir {
 		a.size.SetText("")
-		a.dl.Hide()
 	} else {
 		a.size.SetText(humanBytes(e.Size))
-		a.dl.OnTapped = func() { h.download(e) }
-		a.dl.Show()
 	}
 	if a.chevron != nil {
 		if e.Dir {

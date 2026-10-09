@@ -21,9 +21,10 @@ type rEntry struct {
 // rRoot is a top-level location the browser can open: an MTP storage, or
 // the FTP server's root.
 type rRoot struct {
-	ID   string
-	Name string
-	Flat bool // an install target: upload the files of folders without the folders
+	ID    string
+	Name  string
+	Flat  bool // an install target: upload the files of folders without the folders
+	Saves bool // DBI's game saves ("7: Saves"), offered for backup
 }
 
 // remoteFS is what the file browser needs from a backend. The browser calls
@@ -53,14 +54,17 @@ func parseMTPID(id string) (storage, handle uint32, err error) {
 	return uint32(st), uint32(hd), nil
 }
 
-// mtpRoots turns storages into browser roots; DBI's "install" storages are flat.
+// mtpRoots turns storages into browser roots; DBI's "install" storages are
+// flat, its "Saves" storage holds the game saves.
 func mtpRoots(storages []mtp.Storage) []rRoot {
 	roots := make([]rRoot, len(storages))
 	for i, s := range storages {
+		desc := strings.ToLower(s.Info.Description)
 		roots[i] = rRoot{
-			ID:   mtpID(s.ID, mtp.ParentRoot),
-			Name: storageName(s),
-			Flat: strings.Contains(strings.ToLower(s.Info.Description), "install"),
+			ID:    mtpID(s.ID, mtp.ParentRoot),
+			Name:  storageName(s),
+			Flat:  strings.Contains(desc, "install"),
+			Saves: strings.Contains(desc, "save"),
 		}
 	}
 	return roots

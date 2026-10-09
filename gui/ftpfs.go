@@ -25,6 +25,15 @@ var errFTPLost = errors.New("FTP connection lost")
 
 const ftpTimeout = 10 * time.Second
 
+// A Switch that stops answering (DBI's server stopped, the console asleep,
+// Wi-Fi gone) often leaves the connections open; without these limits a
+// transfer would wait forever. Variables for tests.
+var (
+	ftpDataIdle  = 60 * time.Second  // no data moving on the data connection
+	ftpReplyWait = 120 * time.Second // no reply on the control connection
+	ftpAliveWait = 5 * time.Second   // the NOOP that tells a lost connection from a failed transfer
+)
+
 // ftpFS is a remoteFS over an FTP connection (DBI's "Run FTP server").
 // IDs are absolute paths.
 type ftpFS struct {
@@ -60,7 +69,7 @@ func dialFTP(ctx context.Context, addr, user, pass string, log *slog.Logger) (*f
 				return nil, err
 			}
 			f.listing.opened()
-			return recordingConn{c, &f.listing}, nil
+			return &dataConn{Conn: c, f: f}, nil
 		}),
 		// DBI answers EPSV with "502 Command not implemented".
 		ftp.DialWithDisabledEPSV(true),
@@ -83,6 +92,10 @@ func dialFTP(ctx context.Context, addr, user, pass string, log *slog.Logger) (*f
 	return f, nil
 }
 
+// LatinNamesOnly: DBI's FTP server refuses names with other letters, or
+// saves them so that they don't show in listings (see latinOnly).
+func (f *ftpFS) LatinNamesOnly() {}
+
 // Close ends the session.
 func (f *ftpFS) Close() error { return f.conn.Quit() }
 
@@ -92,7 +105,9 @@ func (f *ftpFS) Close() error { return f.conn.Quit() }
 // only the data transfer failed.
 func (f *ftpFS) do(ctx context.Context, op func() error) error {
 	stop := context.AfterFunc(ctx, func() { f.conn.Quit() })
+	f.ctrl.SetDeadline(time.Now().Add(ftpReplyWait)) // data moving extends it (dataConn)
 	err := op()
+	f.ctrl.SetDeadline(time.Time{})
 	stop()
 	if err == nil {
 		return nil
@@ -112,7 +127,7 @@ func (f *ftpFS) do(ctx context.Context, op func() error) error {
 
 // alive reports whether the server answers on the control connection.
 func (f *ftpFS) alive() bool {
-	f.ctrl.SetDeadline(time.Now().Add(5 * time.Second))
+	f.ctrl.SetDeadline(time.Now().Add(ftpAliveWait))
 	defer f.ctrl.SetDeadline(time.Time{})
 	return f.conn.NoOp() == nil
 }
@@ -329,14 +344,28 @@ func (r *listingRecorder) record(p []byte) {
 	}
 }
 
-// recordingConn is a data connection whose reads go to a listingRecorder.
-type recordingConn struct {
+// dataConn is a data connection. Its reads go to the listing recorder, and
+// every read or write pushes back the idle limits of both connections: the
+// control connection stays quiet while a long transfer runs.
+type dataConn struct {
 	net.Conn
-	rec *listingRecorder
+	f *ftpFS
 }
 
-func (c recordingConn) Read(p []byte) (int, error) {
+func (c *dataConn) touch() {
+	now := time.Now()
+	c.Conn.SetDeadline(now.Add(ftpDataIdle))
+	c.f.ctrl.SetDeadline(now.Add(ftpReplyWait))
+}
+
+func (c *dataConn) Read(p []byte) (int, error) {
+	c.touch()
 	n, err := c.Conn.Read(p)
-	c.rec.record(p[:n])
+	c.f.listing.record(p[:n])
 	return n, err
+}
+
+func (c *dataConn) Write(p []byte) (int, error) {
+	c.touch()
+	return c.Conn.Write(p)
 }

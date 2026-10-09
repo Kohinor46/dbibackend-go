@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"github.com/ncruces/zenity"
 
 	"github.com/Kohinor46/dbibackend-go/dbi"
 	"github.com/Kohinor46/dbibackend-go/i18n"
@@ -123,6 +125,7 @@ type mtpTab struct {
 	// Widgets, rebuilt by build().
 	connectBtn *widget.Button
 	releaseBtn *widget.Button
+	backupBtn  *widget.Button
 	status     *widget.Label
 }
 
@@ -137,10 +140,11 @@ func (m *mtpTab) build() fyne.CanvasObject {
 	m.connectBtn = widget.NewButtonWithIcon("", theme.LoginIcon(), m.toggleConnect)
 	m.releaseBtn = widget.NewButtonWithIcon(T("mtp.release"), theme.MediaStopIcon(), m.release)
 	m.releaseBtn.Hide()
+	m.backupBtn = widget.NewButtonWithIcon(T("mtp.backup_saves"), theme.DocumentSaveIcon(), m.pickBackup)
 	m.status = widget.NewLabel("")
 	m.status.TextStyle.Bold = true
 	m.status.Truncation = fyne.TextTruncateEllipsis
-	content := m.b.build(container.NewBorder(nil, nil, widget.NewLabel(T("status.label")), container.NewHBox(m.releaseBtn, m.connectBtn), m.status))
+	content := m.b.build(container.NewBorder(nil, nil, widget.NewLabel(T("status.label")), container.NewHBox(m.backupBtn, m.releaseBtn, m.connectBtn), m.status))
 	m.render()
 	return content
 }
@@ -163,6 +167,11 @@ func (m *mtpTab) render() {
 		m.connectBtn.Importance = widget.HighImportance
 	}
 	m.connectBtn.Refresh()
+	if _, ok := m.savesRoot(); ok && m.client != nil {
+		m.backupBtn.Show()
+	} else {
+		m.backupBtn.Hide()
+	}
 	m.status.SetText(T(m.statusID, m.statusAr...))
 	m.status.Importance = m.statusIm
 	m.status.Refresh()
@@ -250,6 +259,7 @@ func (m *mtpTab) connect() {
 			m.client, m.closeDev = client, closeDev
 			m.setStatus("mtp.connected", widget.SuccessImportance, strings.TrimSpace(info.Manufacturer+" "+info.Model))
 			m.b.open(mtpFS{client}, mtpRoots(storages))
+			m.render() // the backup button depends on the storages
 		})
 	}()
 }
@@ -265,6 +275,41 @@ func (m *mtpTab) disconnect() {
 	m.client, m.closeDev = nil, nil
 	m.b.close()
 	m.setStatus("mtp.disconnected", widget.MediumImportance)
+}
+
+// savesRoot returns DBI's storage with the game saves, if it is shown.
+func (m *mtpTab) savesRoot() (rRoot, bool) {
+	for _, r := range m.b.roots {
+		if r.Saves {
+			return r, true
+		}
+	}
+	return rRoot{}, false
+}
+
+// pickBackup asks for a folder and copies all game saves into a new
+// "DBI saves <date>" folder in it.
+func (m *mtpTab) pickBackup() {
+	go func() {
+		dir, err := zenity.SelectFile(zenity.Directory(), zenity.Title(i18n.T("mtp.backup_saves")))
+		if err != nil {
+			if !errors.Is(err, zenity.ErrCanceled) {
+				m.u.log.Warn("Folder picker failed", "err", err)
+			}
+			return
+		}
+		runOnUI(func() { m.backup(filepath.Join(dir, "DBI saves "+time.Now().Format("2006-01-02 15-04"))) })
+	}()
+}
+
+func (m *mtpTab) backup(dest string) {
+	r, ok := m.savesRoot()
+	if !ok || m.client == nil {
+		return
+	}
+	m.b.downloadFolder(rEntry{ID: r.ID, Name: "Saves", Dir: true}, dest, func(files int) {
+		dialog.ShowInformation(i18n.T("mtp.backup_saves"), i18n.T("mtp.backup_done", files, dest), m.u.win)
+	})
 }
 
 // release makes the waiting connect loop take the device from the programs

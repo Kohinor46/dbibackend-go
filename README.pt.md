@@ -10,12 +10,14 @@ Um aplicativo para desktop que instala jogos via USB em um Nintendo Switch com o
 
 ## Recursos
 
-- **Interface gráfica**: seleção de pasta (Finder, Explorador de Arquivos ou arrastar e soltar), lista dos arquivos encontrados com seus tamanhos, status da conexão, barra de progresso com velocidade de transferência e um painel de registro compartilhado por todas as abas. O painel fica recolhido, mostrando só a última linha; expanda-o quando precisar.
+- **Interface gráfica**: seleção de pasta (Finder, Explorador de Arquivos ou arrastar e soltar), lista dos arquivos encontrados com seus tamanhos, status da conexão, barra de progresso com velocidade de transferência e um painel de registro compartilhado por todas as abas. O painel fica recolhido, mostrando só a última linha; expanda-o quando precisar, copie o registro inteiro ou salve-o em um arquivo.
 - **Sem reinícios**: quando o DBI termina, o aplicativo volta a aguardar o Switch. A última pasta fica salva, e a instalação começa quando você clica em **Iniciar**.
 - **11 idiomas**: inglês, russo, espanhol, italiano, alemão, francês, português, chinês, japonês, hindi e árabe. O idioma acompanha o do sistema e pode ser alterado na janela.
 - **Driver do Windows integrado**: quando o aplicativo detecta o Switch sem driver, ele oferece a instalação. Isso substitui a etapa manual com o Zadig (veja abaixo).
-- **Arquivos via MTP no macOS e no Linux**: navegue pelos armazenamentos do Switch, envie arquivos e pastas inteiras, baixe e exclua arquivos, sem o Android File Transfer (veja abaixo).
-- **Arquivos via FTP em qualquer sistema**: conecte-se ao servidor FTP do DBI pelo Wi-Fi, sem cabo, para gerenciar o cartão SD ou instalar jogos (veja abaixo).
+- **Arquivos via MTP no macOS e no Linux**: navegue pelos armazenamentos do Switch, envie e baixe arquivos e pastas inteiras, exclua arquivos e faça backup dos saves dos jogos, sem o Android File Transfer (veja abaixo).
+- **Arquivos via FTP em qualquer sistema**: encontre o Switch na rede e conecte-se ao servidor FTP do DBI pelo Wi-Fi, sem cabo, para gerenciar o cartão SD ou instalar jogos (veja abaixo).
+- **Envios interrompidos continuam** de onde pararam, inclusive depois de reconectar.
+- **Notificações** quando uma instalação ou transferência longa termina, e verificação de novas versões ao iniciar.
 - **Configurações**: aparência clara ou escura e seis estilos de exibição de arquivos nas abas MTP e FTP.
 - **Modo de linha de comando** (`-cli`), que funciona como o script original, para automação.
 - **Mais seguro que o original**: o Switch só pode solicitar arquivos da pasta escolhida.
@@ -57,6 +59,12 @@ Para instalar um jogo, envie-o para um armazenamento com “install” no nome: 
 
 **Uma pasta enviada é mesclada** à pasta de mesmo nome no Switch (maiúsculas e minúsculas não fazem diferença): arquivos com o mesmo nome são substituídos, e todo o resto no Switch é mantido. Arquivos de sistema como `.DS_Store` são ignorados. Para os armazenamentos de instalação, só os arquivos são enviados, sem as pastas.
 
+**Se um envio for interrompido** (o cabo saiu, a conexão caiu), aparece uma barra com o botão **Continuar**, inclusive depois de reconectar. Ele envia o restante: os arquivos que já chegaram inteiros são ignorados, e o arquivo que estava sendo enviado é enviado de novo.
+
+**Baixar uma pasta** (pelo botão de download ou pelo menu do botão direito) copia a pasta com todo o conteúdo.
+
+**Backup dos saves**: quando o DBI mostra o armazenamento “Saves”, este botão copia todos os saves dos jogos para uma nova pasta “DBI saves <date>” no computador.
+
 ![Arquivos (MTP)](docs/screenshot-mtp.png)
 
 **“O Switch está sendo usado por outro programa.”** No macOS, o serviço de câmeras do sistema (`ptpcamerad`) se apropria dos dispositivos MTP assim que eles são conectados. Clique em **Liberar dispositivo**: o aplicativo interrompe o serviço e assume o Switch; o macOS volta a iniciar o serviço sozinho quando necessário. O Android File Transfer também prende o dispositivo, então feche-o antes.
@@ -68,11 +76,13 @@ No Windows, a aba fica oculta: o Explorador de Arquivos já mostra o Switch no m
 O DBI pode executar um servidor FTP pelo Wi-Fi. A aba **FTP** se conecta a ele e oferece o mesmo gerenciador de arquivos da aba MTP, incluindo o envio de pastas:
 
 1. No Switch, abra o DBI e escolha **Run FTP server**. A tela mostra o endereço do Switch.
-2. No aplicativo, abra a aba **FTP**, digite o endereço, escolha o modo e clique em **Conectar**:
+2. No aplicativo, abra a aba **FTP**, clique em **Procurar** para encontrar o Switch na rede (ou digite o endereço dele), escolha o modo e clique em **Conectar**:
    - **Cartão SD (porta 5000)**: navegue pelo cartão SD, envie arquivos e pastas, baixe e exclua arquivos, crie pastas;
    - **Instalação (porta 6000)**: envie jogos para instalá-los.
 
-O computador e o Switch precisam estar na mesma rede. O servidor do DBI permite o acesso sem senha; se você definiu uma, informe-a em **Usuário e senha**. Pelo Wi-Fi, as transferências costumam ser mais lentas do que pelo USB.
+O computador e o Switch precisam estar na mesma rede. O servidor do DBI permite o acesso sem senha; se você definiu uma, informe-a em **Usuário e senha**. Pelo Wi-Fi, as transferências costumam ser mais lentas do que pelo USB. Os endereços aos quais você já se conectou ficam guardados no menu do campo de endereço.
+
+O servidor FTP do DBI não consegue salvar nomes com letras não latinas (cirílico, letras acentuadas etc.): ele os recusa ou os salva de um jeito que eles não aparecem. Antes de um envio assim, o aplicativo pergunta se deve renomear esses arquivos e pastas com letras latinas (“Паспорт.pdf” → “Pasport.pdf”) ou ignorá-los.
 
 ![FTP](docs/screenshot-ftp.png)
 
@@ -80,6 +90,7 @@ O computador e o Switch precisam estar na mesma rede. O servidor do DBI permite 
 
 O botão ⚙ ao lado da seleção de idioma abre as configurações:
 
+- **Geral**: notificações quando uma instalação ou transferência de mais de 10 segundos termina (**Testar** envia uma na hora) e verificação de nova versão ao iniciar. Quando houver uma, aparece ao lado do ⚙ um botão com o número dela.
 - **Aparência**: igual ao sistema, clara ou escura.
 - **Exibição de arquivos** nas abas MTP e FTP: clássica, ícones coloridos, etiquetas de formato, tabela, duas linhas ou blocos. Uma prévia mostra cada estilo.
 
