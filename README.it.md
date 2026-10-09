@@ -10,11 +10,13 @@ Un'app desktop per installare giochi via USB su una Nintendo Switch con [DBI](ht
 
 ## Funzionalità
 
-- **Interfaccia grafica**: selezione della cartella (Finder, Esplora file o trascinamento), elenco dei file trovati con le dimensioni, stato della connessione, barra di avanzamento con velocità di trasferimento e un registro.
-- **Nessun riavvio**: quando DBI ha finito, l'app attende di nuovo la Switch. L'ultima cartella viene ricordata e il server si avvia automaticamente all'apertura.
+- **Interfaccia grafica**: selezione della cartella (Finder, Esplora file o trascinamento), elenco dei file trovati con le dimensioni, stato della connessione, barra di avanzamento con velocità di trasferimento e un pannello del registro condiviso da tutte le schede. Il pannello è compresso sull'ultima riga; espandilo quando ti serve.
+- **Nessun riavvio**: quando DBI ha finito, l'app attende di nuovo la Switch. L'ultima cartella viene ricordata; l'installazione parte quando fai clic su **Avvia**.
 - **11 lingue**: inglese, russo, spagnolo, italiano, tedesco, francese, portoghese, cinese, giapponese, hindi e arabo. La lingua segue quella del sistema e si può cambiare dalla finestra.
 - **Driver per Windows integrato**: se l'app rileva la Switch senza driver, propone di installarlo. Questo sostituisce il passaggio manuale con Zadig (vedi sotto).
-- **File via MTP su macOS e Linux**: sfoglia le memorie della Switch, carica, scarica ed elimina file, senza Android File Transfer (vedi sotto).
+- **File via MTP su macOS e Linux**: sfoglia le memorie della Switch, carica file e intere cartelle, scarica ed elimina file, senza Android File Transfer (vedi sotto).
+- **File via FTP su tutti i sistemi**: connettiti al server FTP di DBI via Wi-Fi, senza cavo, per gestire la scheda SD o installare giochi (vedi sotto).
+- **Impostazioni**: aspetto chiaro o scuro e sei stili di vista dei file per le schede MTP e FTP.
 - **Modalità a riga di comando** (`-cli`) che si comporta come lo script originale, per l'automazione.
 - **Più sicura dell'originale**: la Switch può richiedere solo file dalla cartella scelta.
 
@@ -30,7 +32,7 @@ Le build pronte sono nella pagina [Releases](../../releases).
 
 ## Utilizzo
 
-1. Avvia l'app e scegli la cartella con i tuoi giochi. Sono incluse anche le sottocartelle.
+1. Avvia l'app, scegli la cartella con i tuoi giochi (sono incluse anche le sottocartelle) e fai clic su **Avvia**.
 2. Sulla Switch, apri DBI e scegli **Install title from USB**.
 3. Collega la Switch al computer con un cavo USB. Lo stato diventa **Connesso**.
 4. Scegli i file in DBI e installali. Avanzamento e velocità sono mostrati in fondo alla finestra.
@@ -49,15 +51,41 @@ macOS non supporta MTP in modo nativo, quindi la Switch non compare nel Finder q
 
 1. Sulla Switch, apri DBI e scegli **Run MTP responder**, poi collega il cavo.
 2. Nell'app, apri la scheda **File (MTP)** e fai clic su **Connetti**.
-3. Scegli una memoria (scheda SD, NAND, destinazioni di installazione, salvataggi e così via), apri le cartelle e carica i file con **Carica file…** o trascinandoli nella finestra. Puoi anche scaricare ed eliminare file e creare cartelle.
+3. Scegli una memoria (scheda SD, NAND, destinazioni di installazione, salvataggi e così via), apri le cartelle e carica file e cartelle con **Carica file…** e **Carica cartella…** o trascinandoli nella finestra. Puoi anche scaricare ed eliminare file e creare cartelle.
 
 Per installare un gioco, caricalo in una memoria che abbia «install» nel nome: DBI lo installa man mano che arriva. Sono supportati file più grandi di 4 GB.
+
+**Quando carichi una cartella**, il suo contenuto viene unito a quello della cartella con lo stesso nome sulla Switch (maiuscole e minuscole non contano): i file con lo stesso nome vengono sostituiti e tutto il resto sulla Switch rimane com'è. I file di servizio come `.DS_Store` vengono saltati. Nelle memorie di installazione vengono inviati solo i file, senza le cartelle.
 
 ![File (MTP)](docs/screenshot-mtp.png)
 
 **«La Switch è in uso da parte di un altro programma».** Su macOS il servizio fotocamere di sistema (`ptpcamerad`) si appropria dei dispositivi MTP appena vengono collegati. Fai clic su **Libera dispositivo**: l'app arresta il servizio e prende la Switch; macOS riavvia il servizio da solo quando serve. Anche Android File Transfer tiene occupato il dispositivo, quindi chiudilo prima.
 
 Su Windows la scheda è nascosta: Esplora file mostra già la Switch in modalità MTP.
+
+## File via FTP (tutti i sistemi)
+
+DBI può avviare un server FTP via Wi-Fi. La scheda **FTP** si connette a questo server e offre lo stesso file manager della scheda MTP, compreso il caricamento di cartelle:
+
+1. Sulla Switch, apri DBI e scegli **Run FTP server**. Sullo schermo compare l'indirizzo della Switch.
+2. Nell'app, apri la scheda **FTP**, inserisci l'indirizzo, scegli la modalità e fai clic su **Connetti**:
+   - **Scheda SD (porta 5000)**: sfoglia la scheda SD, carica file e cartelle, scarica ed elimina file, crea cartelle;
+   - **Installazione (porta 6000)**: carica i giochi per installarli.
+
+Il computer e la Switch devono essere sulla stessa rete. Il server di DBI non richiede una password; se ne hai impostata una, inseriscila in **Nome utente e password**. Via Wi-Fi i trasferimenti sono di solito più lenti che via USB.
+
+![FTP](docs/screenshot-ftp.png)
+
+## Impostazioni
+
+Il pulsante ⚙ accanto alla scelta della lingua apre le impostazioni:
+
+- **Aspetto**: come il sistema, chiaro o scuro.
+- **Vista dei file** per le schede MTP e FTP: classica, icone colorate, etichette di formato, tabella, due righe o riquadri. Un'anteprima mostra ogni stile.
+
+In ogni stile, un clic destro su un file o una cartella apre un menu con le relative azioni.
+
+![Impostazioni](docs/screenshot-settings.png)
 
 ## Linux
 
@@ -87,7 +115,7 @@ Alla fine di ogni sessione il registro mostra una riga `Session stats`:
 | `time_data` / `time_handshake` / `waiting_for_switch` | Quota di tempo spesa per l'invio dei dati, per lo scambio del protocollo e in attesa della Switch |
 | `active` / `idle` | Tempo di installazione e tempo di inattività prima e dopo |
 
-Se `waiting_for_switch` è alto, il collo di bottiglia è la Switch (velocità di scrittura della microSD, decompressione NSZ). Con **Debug** attivo, il registro mostra ogni richiesta di DBI con dimensione e velocità.
+Se `waiting_for_switch` è alto, il collo di bottiglia è la Switch (velocità di scrittura della microSD, decompressione NSZ). Con **Debug** attivo (nel pannello del registro), il registro mostra ogni richiesta di DBI con dimensione e velocità.
 
 ## Modalità a riga di comando
 
@@ -124,7 +152,7 @@ make release      # dist/DBI Backend.app and dist/DBI Backend.exe
 | `dbi` | Protocollo DBI0 (LIST / FILE_RANGE / EXIT), scansione della cartella, statistiche di sessione |
 | `usbconn` | Apertura della Switch tramite libusb (gousb) in modalità installazione via USB e MTP, trasferimenti bulk |
 | `mtp` | Client MTP (PTP su USB): memorie, cartelle, caricamento e download, file più grandi di 4 GB |
-| `gui` | Interfaccia Fyne |
+| `gui` | Interfaccia Fyne, client FTP |
 | `i18n` | Traduzioni (`i18n/locales/*.json`) |
 | `winusb` | Installazione di WinUSB su Windows (SetupAPI) |
 | `cmd/winusb-helper` | Helper nativo ARM64 per Windows per l'installazione del driver |
@@ -143,6 +171,6 @@ Per aggiungere o correggere una traduzione, modifica `i18n/locales/<code>.json`.
 - [lunixoid/dbibackend](https://github.com/lunixoid/dbibackend) (MIT): l'implementazione originale del protocollo.
 - [DBI](https://github.com/rashevskyv/dbi) di duckbill: l'installer sulla Switch.
 - [libusb](https://libusb.info/) (LGPL-2.1) è collegata staticamente nelle build. Il codice sorgente di questo progetto è aperto, quindi puoi ricompilarlo con la tua versione di libusb.
-- [Fyne](https://fyne.io/) (BSD-3-Clause), [gousb](https://github.com/google/gousb) (Apache-2.0), [zenity](https://github.com/ncruces/zenity) (MIT).
+- [Fyne](https://fyne.io/) (BSD-3-Clause), [gousb](https://github.com/google/gousb) (Apache-2.0), [zenity](https://github.com/ncruces/zenity) (MIT), [jlaffaye/ftp](https://github.com/jlaffaye/ftp) (ISC).
 
 Questo progetto non è affiliato a Nintendo. Installa solo giochi di cui possiedi una copia.

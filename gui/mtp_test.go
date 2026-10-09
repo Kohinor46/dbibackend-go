@@ -165,10 +165,10 @@ func waitFor(t *testing.T, what string, cond func() bool) {
 	}
 }
 
-func names(items []mtp.Object) []string {
+func names(items []rEntry) []string {
 	var n []string
-	for _, o := range items {
-		n = append(n, o.Name())
+	for _, e := range items {
+		n = append(n, e.Name)
 	}
 	return n
 }
@@ -191,23 +191,23 @@ func TestMTPTab(t *testing.T) {
 	u.build()
 	m := u.mtp
 	m.connect()
-	waitFor(t, "connect and list", func() bool { return m.client != nil && !m.busy && len(m.items) > 0 })
+	waitFor(t, "connect and list", func() bool { return m.client != nil && !m.b.busy && len(m.b.items) > 0 })
 
 	if got := m.status.Text; got != "Connected: Nintendo Switch (DBI)" {
 		t.Errorf("status = %q", got)
 	}
-	if got := names(m.items); len(got) != 2 || got[0] != "Games" || got[1] != "b.nsp" {
+	if got := names(m.b.items); len(got) != 2 || got[0] != "Games" || got[1] != "b.nsp" {
 		t.Fatalf("root = %v (folders first)", got)
 	}
-	if len(m.storageSel.Options) != 2 {
-		t.Errorf("storages = %v", m.storageSel.Options)
+	if len(m.b.rootSel.Options) != 2 {
+		t.Errorf("storages = %v", m.b.rootSel.Options)
 	}
 
 	// Open the folder by clicking it.
-	m.list.OnSelected(0)
-	waitFor(t, "folder listing", func() bool { return !m.busy })
-	if len(m.path) != 1 || names(m.items)[0] != "a.xci" || m.pathLabel.Text != "/Games" {
-		t.Fatalf("in folder: path=%v items=%v label=%q", m.path, names(m.items), m.pathLabel.Text)
+	m.b.enter(m.b.items[0])
+	waitFor(t, "folder listing", func() bool { return !m.b.busy })
+	if len(m.b.path) != 1 || names(m.b.items)[0] != "a.xci" || m.b.pathLabel.Text != "/Games" {
+		t.Fatalf("in folder: path=%v items=%v label=%q", m.b.path, names(m.b.items), m.b.pathLabel.Text)
 	}
 
 	// Upload a local file into it.
@@ -215,16 +215,16 @@ func TestMTPTab(t *testing.T) {
 	src := filepath.Join(dir, "new.nsp")
 	payload := bytes.Repeat([]byte("dbi"), 100_000)
 	os.WriteFile(src, payload, 0o644)
-	m.upload([]string{src, filepath.Join(dir, "missing")})
-	waitFor(t, "upload", func() bool { return !m.busy })
-	if got := names(m.items); len(got) != 2 || got[1] != "new.nsp" {
+	m.b.upload([]string{src, filepath.Join(dir, "missing")})
+	waitFor(t, "upload", func() bool { return !m.b.busy })
+	if got := names(m.b.items); len(got) != 2 || got[1] != "new.nsp" {
 		t.Fatalf("after upload: %v", got)
 	}
 
 	// Download it back.
 	dest := filepath.Join(dir, "copy.nsp")
-	m.download(m.items[1], dest)
-	waitFor(t, "download", func() bool { return !m.busy })
+	m.b.download(m.b.items[1], dest)
+	waitFor(t, "download", func() bool { return !m.b.busy })
 	if got, _ := os.ReadFile(dest); !bytes.Equal(got, payload) {
 		t.Fatal("downloaded file differs")
 	}
@@ -232,62 +232,60 @@ func TestMTPTab(t *testing.T) {
 	// A failed download leaves no partial file and keeps the session.
 	fake.setFail("download", &mtp.RespError{Op: mtp.OpGetObject, Code: mtp.RespGeneralError})
 	bad := filepath.Join(dir, "bad.nsp")
-	m.download(m.items[1], bad)
-	waitFor(t, "failed download", func() bool { return !m.busy })
+	m.b.download(m.b.items[1], bad)
+	waitFor(t, "failed download", func() bool { return !m.b.busy })
 	if _, err := os.Stat(bad); err == nil || m.client == nil {
 		t.Errorf("failed download: file left=%v connected=%v", err == nil, m.client != nil)
 	}
 	fake.setFail("", nil)
 
 	// New folder, delete, go up.
-	m.makeFolder("  Saves ")
-	waitFor(t, "make folder", func() bool { return !m.busy })
-	if got := names(m.items); got[0] != "Saves" {
+	m.b.makeFolder("  Saves ")
+	waitFor(t, "make folder", func() bool { return !m.b.busy })
+	if got := names(m.b.items); got[0] != "Saves" {
 		t.Fatalf("after make folder: %v", got)
 	}
-	m.delete(m.items[0])
-	waitFor(t, "delete", func() bool { return !m.busy })
-	if len(m.items) != 2 {
-		t.Fatalf("after delete: %v", names(m.items))
+	m.b.delete(m.b.items[0])
+	waitFor(t, "delete", func() bool { return !m.b.busy })
+	if len(m.b.items) != 2 {
+		t.Fatalf("after delete: %v", names(m.b.items))
 	}
-	m.up()
-	waitFor(t, "up", func() bool { return !m.busy })
-	if len(m.path) != 0 || len(m.items) != 2 {
-		t.Fatalf("after up: %v", names(m.items))
+	m.b.up()
+	waitFor(t, "up", func() bool { return !m.b.busy })
+	if len(m.b.path) != 0 || len(m.b.items) != 2 {
+		t.Fatalf("after up: %v", names(m.b.items))
 	}
 
 	// Switching language keeps the session and the listing.
 	i18n.Set("ru")
 	u.build()
-	if m.client == nil || len(m.items) != 2 || m.status.Text != "Подключено: Nintendo Switch (DBI)" {
-		t.Errorf("after rebuild: connected=%v items=%v status=%q", m.client != nil, names(m.items), m.status.Text)
+	if m.client == nil || len(m.b.items) != 2 || m.status.Text != "Подключено: Nintendo Switch (DBI)" {
+		t.Errorf("after rebuild: connected=%v items=%v status=%q", m.client != nil, names(m.b.items), m.status.Text)
 	}
 
 	// A broken transfer drops the connection.
 	fake.setFail("list", mtp.ErrBroken)
-	m.refresh()
+	m.b.refresh()
 	waitFor(t, "disconnect", func() bool { return m.client == nil })
 	waitFor(t, "device released", func() bool { return disconnected.Load() })
 }
 
-// On Windows there is no MTP tab: the window shows only the install view.
+// On Windows there is no MTP tab: install and FTP only.
 func TestNoMTPTabWhenUnsupported(t *testing.T) {
 	defer func(v bool) { mtpSupported = v }(mtpSupported)
 	mtpSupported = false
 	u := newUI(test.NewApp(), false)
 	u.build()
-	if u.tabs != nil {
-		t.Fatal("tabs built although MTP is unsupported")
+	if n := len(u.tabs.Items); n != 2 || len(u.drops) != 2 {
+		t.Fatalf("tabs = %d, drops = %d; want install + FTP", n, len(u.drops))
 	}
-	if u.startBtn == nil || u.dirEntry == nil {
-		t.Fatal("install view missing")
-	}
-	// Rebuilding (language change) works without tabs too.
+	// Rebuilding (language change) keeps the selected tab and the folder.
 	dir := t.TempDir()
 	u.setDir(dir)
+	u.tabs.SelectIndex(1)
 	u.build()
-	if u.tabs != nil || u.dirEntry.Text != dir {
-		t.Errorf("after rebuild: tabs=%v dir=%q", u.tabs != nil, u.dirEntry.Text)
+	if u.tabs.SelectedIndex() != 1 || u.dirEntry.Text != dir {
+		t.Errorf("after rebuild: tab=%d dir=%q", u.tabs.SelectedIndex(), u.dirEntry.Text)
 	}
 }
 

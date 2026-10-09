@@ -10,11 +10,13 @@ It is a Go rewrite of [lunixoid/dbibackend](https://github.com/lunixoid/dbibacke
 
 ## Features
 
-- **Graphical interface**: folder picker (Finder, Explorer, or drag and drop), list of found files with sizes, connection status, progress bar with transfer speed, and a log.
-- **No restarts**: after DBI finishes, the app waits for the Switch again. The last folder is remembered, and the server starts automatically on launch.
+- **Graphical interface**: folder picker (Finder, Explorer, or drag and drop), list of found files with sizes, connection status, progress bar with transfer speed, and a log panel shared by all tabs. The panel is collapsed to its latest line; expand it when you need it.
+- **No restarts**: after DBI finishes, the app waits for the Switch again. The last folder is remembered; installing starts when you click **Start**.
 - **11 languages**: English, Russian, Spanish, Italian, German, French, Portuguese, Chinese, Japanese, Hindi, and Arabic. The language follows the system and can be changed in the window.
 - **Windows driver built in**: when the app sees the Switch without a driver, it offers to install it. This replaces the manual Zadig step (see below).
-- **Files over MTP on macOS and Linux**: browse the Switch's storages, upload, download and delete files, without Android File Transfer (see below).
+- **Files over MTP on macOS and Linux**: browse the Switch's storages, upload files and whole folders, download and delete files, without Android File Transfer (see below).
+- **Files over FTP on every system**: connect to DBI's FTP server over Wi-Fi, without a cable, to manage the SD card or install games (see below).
+- **Settings**: light or dark appearance, and six file view styles for the MTP and FTP tabs.
 - **Command-line mode** (`-cli`) that behaves like the original script, for automation.
 - **Safer than the original**: the Switch can only request files from the chosen folder.
 
@@ -30,7 +32,7 @@ Ready-made builds are on the [Releases](../../releases) page.
 
 ## Usage
 
-1. Start the app and choose the folder with your games. Subfolders are included.
+1. Start the app, choose the folder with your games (subfolders are included), and click **Start**.
 2. On the Switch, open DBI and choose **Install title from USB**.
 3. Connect the Switch to the computer with a USB cable. The status changes to **Connected**.
 4. Choose the files in DBI and install them. Progress and speed are shown at the bottom of the window.
@@ -49,15 +51,41 @@ macOS has no built-in MTP support, so the Switch doesn't appear in Finder when D
 
 1. On the Switch, open DBI and choose **Run MTP responder**, then connect the cable.
 2. In the app, open the **Files (MTP)** tab and click **Connect**.
-3. Pick a storage (SD card, NAND, install targets, saves and so on), open folders, and upload files with **Upload files…** or by dragging them onto the window. You can also download and delete files and create folders.
+3. Pick a storage (SD card, NAND, install targets, saves and so on), open folders, and upload files and folders with **Upload files…** and **Upload folder…** or by dragging them onto the window. You can also download and delete files and create folders.
 
 To install a game, upload it to a storage with "install" in its name: DBI installs it as it arrives. Files over 4 GB are supported.
+
+**Uploading a folder** merges it into the folder with the same name on the Switch (letter case doesn't matter): files with the same names are replaced, and everything else on the Switch stays. Service files such as `.DS_Store` are skipped. Into install storages only the files are sent, without the folders.
 
 ![Files (MTP)](docs/screenshot-mtp.png)
 
 **"The Switch is used by another program."** On macOS the system camera service (`ptpcamerad`) grabs MTP devices as soon as they are connected. Click **Free the device**: the app stops the service and takes the Switch; macOS starts the service again on its own when it's needed. Android File Transfer also holds the device, so quit it first.
 
 On Windows the tab is hidden: Explorer already shows the Switch in MTP mode.
+
+## Files over FTP (all systems)
+
+DBI can run an FTP server over Wi-Fi. The **FTP** tab connects to it and offers the same file manager as the MTP tab, including folder uploads:
+
+1. On the Switch, open DBI and choose **Run FTP server**. The screen shows the Switch's address.
+2. In the app, open the **FTP** tab, enter the address, choose the mode, and click **Connect**:
+   - **SD card (port 5000)**: browse the SD card, upload files and folders, download and delete files, create folders;
+   - **Install (port 6000)**: upload games to install them.
+
+The computer and the Switch must be on the same network. DBI's server lets you in without a password; if you have set one, enter it under **Login and password**. Over Wi-Fi, transfers are usually slower than over USB.
+
+![FTP](docs/screenshot-ftp.png)
+
+## Settings
+
+The ⚙ button next to the language picker opens the settings:
+
+- **Appearance**: as in the system, light, or dark.
+- **File view** for the MTP and FTP tabs: classic, coloured icons, format badges, table, two lines, or tiles. A preview shows each style.
+
+In every style, a right-click on a file or folder opens a menu with its actions.
+
+![Settings](docs/screenshot-settings.png)
 
 ## Linux
 
@@ -87,7 +115,7 @@ At the end of every session the log shows a `Session stats` line:
 | `time_data` / `time_handshake` / `waiting_for_switch` | Share of time spent sending data, on the protocol exchange, and waiting for the Switch |
 | `active` / `idle` | Install time and idle time before and after it |
 
-If `waiting_for_switch` is high, the bottleneck is the Switch (microSD write speed, NSZ decompression). With **Debug** enabled, the log shows every DBI request with its size and speed.
+If `waiting_for_switch` is high, the bottleneck is the Switch (microSD write speed, NSZ decompression). With **Debug** enabled (in the log panel), the log shows every DBI request with its size and speed.
 
 ## Command-line mode
 
@@ -124,7 +152,7 @@ make release      # dist/DBI Backend.app and dist/DBI Backend.exe
 | `dbi` | DBI0 protocol (LIST / FILE_RANGE / EXIT), folder scan, session statistics |
 | `usbconn` | Opening the Switch through libusb (gousb) in USB install and MTP modes, bulk transfers |
 | `mtp` | MTP client (PTP over USB): storages, folders, upload and download, files over 4 GB |
-| `gui` | Fyne interface |
+| `gui` | Fyne interface, FTP client |
 | `i18n` | Translations (`i18n/locales/*.json`) |
 | `winusb` | Installing WinUSB on Windows (SetupAPI) |
 | `cmd/winusb-helper` | Native ARM64 Windows helper for driver installation |
@@ -143,6 +171,6 @@ To add or fix a translation, edit `i18n/locales/<code>.json`. `go test ./i18n/` 
 - [lunixoid/dbibackend](https://github.com/lunixoid/dbibackend) (MIT): the original implementation of the protocol.
 - [DBI](https://github.com/rashevskyv/dbi) by duckbill: the installer on the Switch.
 - [libusb](https://libusb.info/) (LGPL-2.1) is linked statically into the builds. The source code of this project is open, so you can rebuild it with your own version of libusb.
-- [Fyne](https://fyne.io/) (BSD-3-Clause), [gousb](https://github.com/google/gousb) (Apache-2.0), [zenity](https://github.com/ncruces/zenity) (MIT).
+- [Fyne](https://fyne.io/) (BSD-3-Clause), [gousb](https://github.com/google/gousb) (Apache-2.0), [zenity](https://github.com/ncruces/zenity) (MIT), [jlaffaye/ftp](https://github.com/jlaffaye/ftp) (ISC).
 
 This project is not affiliated with Nintendo. Install only games you own.

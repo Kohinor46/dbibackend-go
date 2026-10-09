@@ -41,7 +41,9 @@ type ui struct {
 	logLevel *slog.LevelVar
 	logView  *logView
 	mtp      *mtpTab
+	ftp      *ftpTab
 	tabs     *container.AppTabs
+	drops    []func([]fyne.URI) // per tab: what dropping files does; nil = pick the folder
 
 	// Rebuilt by build() when the language changes.
 	dirEntry   *widget.Entry
@@ -65,6 +67,10 @@ type ui struct {
 	running       bool
 	driverOffered bool
 	installing    bool
+	fileStyle     fileStyle  // how the MTP and FTP browsers draw entries
+	appearance    appearance // light, dark or as the system
+	logOpen       bool       // the shared log panel is expanded
+	logToggle     *widget.Button
 }
 
 // Run opens the main window and blocks until it is closed.
@@ -84,10 +90,7 @@ func Run(dir string, debug bool) {
 		dir = a.Preferences().String(prefDir)
 	}
 	if dir != "" {
-		u.setDir(dir)
-		if isDir(dir) {
-			u.start()
-		}
+		u.setDir(dir) // installing starts only when the user presses Start
 	}
 
 	u.win.Resize(fyne.NewSize(760, 640))
@@ -104,7 +107,12 @@ func newUI(a fyne.App, debug bool) *ui {
 	}
 	u.logView = newLogView()
 	u.log = slog.New(&lineHandler{w: io.MultiWriter(os.Stderr, u.logView), level: u.logLevel})
+	u.fileStyle = loadFileStyle(a.Preferences())
+	if u.appearance = loadAppearance(a.Preferences()); u.appearance != appearanceSystem {
+		a.Settings().SetTheme(u.appearance.theme())
+	}
 	u.mtp = newMTPTab(u)
+	u.ftp = newFTPTab(u)
 	return u
 }
 
@@ -131,15 +139,7 @@ func (u *ui) build() {
 	u.status.Truncation = fyne.TextTruncateEllipsis
 	u.startBtn = widget.NewButtonWithIcon("", nil, u.toggle)
 	u.refreshStartBtn()
-	debug := widget.NewCheck(T("debug"), func(on bool) {
-		if on {
-			u.logLevel.Set(slog.LevelDebug)
-		} else {
-			u.logLevel.Set(slog.LevelInfo)
-		}
-	})
-	debug.SetChecked(u.logLevel.Level() == slog.LevelDebug)
-	right := container.NewHBox(debug, u.startBtn)
+	right := container.NewHBox(u.startBtn)
 	if winusb.Supported {
 		u.driverBtn = widget.NewButtonWithIcon(T("driver.button"), theme.SettingsIcon(), u.installDriver)
 		if u.installing {
@@ -203,14 +203,6 @@ func (u *ui) build() {
 	titlesHeader := container.NewHBox(widget.NewLabelWithStyle(T("files.title"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), u.countLabel, layout.NewSpacer(), refresh)
 	titlesPane := container.NewBorder(titlesHeader, nil, nil, nil, u.list)
 
-	// Log.
-	clear := widget.NewButtonWithIcon("", theme.ContentClearIcon(), u.logView.Clear)
-	logHeader := container.NewHBox(widget.NewLabelWithStyle(T("log.title"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), layout.NewSpacer(), clear)
-	logPane := container.NewBorder(logHeader, nil, nil, nil, u.logView.scroll)
-
-	split := container.NewVSplit(titlesPane, logPane)
-	split.Offset = 0.55
-
 	// Transfer progress.
 	u.curLabel = widget.NewLabel("")
 	u.curLabel.Truncation = fyne.TextTruncateEllipsis
@@ -219,25 +211,24 @@ func (u *ui) build() {
 	progressBox := container.NewVBox(widget.NewSeparator(), u.curLabel, u.progress)
 	u.resetTransfer()
 
-	if !mtpSupported {
-		// Only the install view: no tab bar, the language picker ends the folder row.
-		top := container.NewVBox(container.NewBorder(nil, nil, nil, langSel, folderRow), statusRow, widget.NewSeparator())
-		u.win.SetContent(container.NewPadded(container.NewBorder(top, progressBox, nil, nil, split)))
-	} else {
-		top := container.NewVBox(folderRow, statusRow, widget.NewSeparator())
-		install := container.NewBorder(top, progressBox, nil, nil, split)
-		selected := 0
-		if u.tabs != nil {
-			selected = u.tabs.SelectedIndex()
-		}
-		u.tabs = container.NewAppTabs(
-			container.NewTabItemWithIcon(T("tab.install"), theme.DownloadIcon(), install),
-			container.NewTabItemWithIcon(T("tab.mtp"), theme.StorageIcon(), u.mtp.build()),
-		)
-		u.tabs.SelectIndex(selected)
-		// The language picker sits on the tab bar's row, right-aligned.
-		u.win.SetContent(container.NewPadded(container.NewStack(u.tabs, container.NewVBox(container.NewHBox(layout.NewSpacer(), langSel)))))
+	top := container.NewVBox(folderRow, statusRow, widget.NewSeparator())
+	install := container.NewBorder(top, progressBox, nil, nil, titlesPane)
+	selected := 0
+	if u.tabs != nil {
+		selected = u.tabs.SelectedIndex()
 	}
+	u.tabs = container.NewAppTabs(container.NewTabItemWithIcon(T("tab.install"), theme.DownloadIcon(), install))
+	u.drops = []func([]fyne.URI){nil}
+	if mtpSupported {
+		u.tabs.Append(container.NewTabItemWithIcon(T("tab.mtp"), theme.StorageIcon(), u.mtp.build()))
+		u.drops = append(u.drops, u.mtp.b.dropped)
+	}
+	u.tabs.Append(container.NewTabItemWithIcon(T("tab.ftp"), theme.ComputerIcon(), u.ftp.build()))
+	u.drops = append(u.drops, u.ftp.b.dropped)
+	u.tabs.SelectIndex(selected)
+	// Settings and the language picker sit on the tab bar's row, right-aligned.
+	settings := widget.NewButtonWithIcon("", theme.SettingsIcon(), u.showSettings)
+	u.withLog(container.NewStack(u.tabs, container.NewVBox(container.NewHBox(layout.NewSpacer(), settings, langSel))))
 
 	if isDir(dir) {
 		u.setTitles(u.titles)
@@ -246,8 +237,8 @@ func (u *ui) build() {
 	}
 
 	u.win.SetOnDropped(func(_ fyne.Position, uris []fyne.URI) {
-		if u.tabs != nil && u.tabs.SelectedIndex() == 1 {
-			u.mtp.dropped(uris)
+		if drop := u.drops[u.tabs.SelectedIndex()]; drop != nil {
+			drop(uris)
 			return
 		}
 		for _, uri := range uris {
@@ -257,6 +248,44 @@ func (u *ui) build() {
 			}
 		}
 	})
+}
+
+// withLog shows main with the log panel under it, shared by all tabs. The
+// panel starts collapsed to one line with the latest entry; its header
+// button expands it.
+func (u *ui) withLog(main fyne.CanvasObject) {
+	T := i18n.T
+	debug := widget.NewCheck(T("debug"), func(on bool) {
+		if on {
+			u.logLevel.Set(slog.LevelDebug)
+		} else {
+			u.logLevel.Set(slog.LevelInfo)
+		}
+	})
+	debug.SetChecked(u.logLevel.Level() == slog.LevelDebug)
+	clear := widget.NewButtonWithIcon("", theme.ContentClearIcon(), u.logView.Clear)
+	var render func()
+	u.logToggle = widget.NewButtonWithIcon(T("log.title"), nil, func() {
+		u.logOpen = !u.logOpen
+		render()
+	})
+	u.logToggle.Importance = widget.LowImportance
+	header := container.NewBorder(nil, nil, u.logToggle, container.NewHBox(debug, clear), u.logView.last)
+	render = func() {
+		if u.logOpen {
+			u.logToggle.SetIcon(theme.MenuDropDownIcon())
+			u.logView.last.Hide()
+			split := container.NewVSplit(main, container.NewBorder(header, nil, nil, nil, u.logView.scroll))
+			split.Offset = 0.65
+			u.win.SetContent(container.NewPadded(split))
+			u.logView.scroll.ScrollToBottom()
+		} else {
+			u.logToggle.SetIcon(theme.MenuDropUpIcon())
+			u.logView.last.Show()
+			u.win.SetContent(container.NewPadded(container.NewBorder(nil, container.NewVBox(widget.NewSeparator(), header), nil, nil, main)))
+		}
+	}
+	render()
 }
 
 func (u *ui) refreshStartBtn() {
@@ -502,6 +531,7 @@ type logView struct {
 	pending bool // a UI refresh is already queued
 	label   *widget.Label
 	scroll  *container.Scroll
+	last    *widget.Label // the latest line, shown while the panel is collapsed
 }
 
 const maxLogLines = 500
@@ -510,6 +540,8 @@ func newLogView() *logView {
 	l := &logView{label: widget.NewLabelWithStyle("", fyne.TextAlignLeading, fyne.TextStyle{Monospace: true})}
 	l.label.Selectable = true
 	l.scroll = container.NewScroll(l.label)
+	l.last = widget.NewLabel("")
+	l.last.Truncation = fyne.TextTruncateEllipsis
 	return l
 }
 
@@ -532,9 +564,14 @@ func (l *logView) Write(p []byte) (int, error) {
 func (l *logView) flush() {
 	l.mu.Lock()
 	text := strings.Join(l.lines, "\n")
+	last := ""
+	if len(l.lines) > 0 {
+		last = l.lines[len(l.lines)-1]
+	}
 	l.pending = false
 	l.mu.Unlock()
 	l.label.SetText(text)
+	l.last.SetText(last)
 	l.scroll.ScrollToBottom()
 }
 
@@ -543,6 +580,7 @@ func (l *logView) Clear() {
 	l.lines = nil
 	l.mu.Unlock()
 	l.label.SetText("")
+	l.last.SetText("")
 }
 
 func isDir(p string) bool {

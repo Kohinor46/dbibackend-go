@@ -10,11 +10,13 @@
 
 ## 功能
 
-- **图形界面**：文件夹选择（Finder、资源管理器或拖放）、已找到文件的列表及其大小、连接状态、带传输速度的进度条，以及日志。
-- **无需重启**：DBI 完成后，应用会重新等待 Switch 连接。上次使用的文件夹会被记住，启动时服务器会自动运行。
+- **图形界面**：文件夹选择（Finder、资源管理器或拖放）、已找到文件的列表及其大小、连接状态、带传输速度的进度条，以及所有标签页共用的日志面板。日志面板默认折叠，只显示最新一行，需要时可以展开。
+- **无需重启**：DBI 完成后，应用会重新等待 Switch 连接。上次使用的文件夹会被记住；点击 **开始** 后才会开始安装。
 - **11 种语言**：英语、俄语、西班牙语、意大利语、德语、法语、葡萄牙语、中文、日语、印地语和阿拉伯语。默认跟随系统语言，也可以在窗口中切换。
 - **内置 Windows 驱动安装**：应用检测到未安装驱动的 Switch 时，会提示安装驱动。这取代了使用 Zadig 手动安装的步骤（见下文）。
-- **在 macOS 和 Linux 上通过 MTP 管理文件**：浏览 Switch 的存储，上传、下载和删除文件，无需 Android File Transfer（见下文）。
+- **在 macOS 和 Linux 上通过 MTP 管理文件**：浏览 Switch 的存储，上传文件和整个文件夹，下载和删除文件，无需 Android File Transfer（见下文）。
+- **在所有系统上通过 FTP 管理文件**：通过 Wi-Fi 连接 DBI 的 FTP 服务器，无需数据线，即可管理 SD 卡或安装游戏（见下文）。
+- **设置**：浅色或深色外观，以及适用于 MTP 和 FTP 标签页的六种文件视图样式。
 - **命令行模式**（`-cli`）：行为与原始脚本一致，便于自动化。
 - **比原版更安全**：Switch 只能请求所选文件夹中的文件。
 
@@ -30,7 +32,7 @@
 
 ## 使用方法
 
-1. 启动应用，选择存放游戏的文件夹。子文件夹也会包含在内。
+1. 启动应用，选择存放游戏的文件夹（子文件夹也会包含在内），然后点击 **开始**。
 2. 在 Switch 上打开 DBI，选择 **Install title from USB**。
 3. 用 USB 数据线将 Switch 连接到电脑。状态会变为 **已连接**。
 4. 在 DBI 中选择文件并安装。进度和速度显示在窗口底部。
@@ -49,15 +51,41 @@ macOS 没有内置 MTP 支持，因此 DBI 开启 MTP 模式时，Switch 不会�
 
 1. 在 Switch 上打开 DBI，选择 **Run MTP responder**，然后连接数据线。
 2. 在应用中打开 **文件（MTP）** 标签页，点击 **连接**。
-3. 选择一个存储（SD 卡、NAND、安装目标、存档等），打开文件夹，然后通过 **上传文件…** 或将文件拖到窗口中来上传。你也可以下载和删除文件，以及新建文件夹。
+3. 选择一个存储（SD 卡、NAND、安装目标、存档等），打开文件夹，然后通过 **上传文件…** 和 **上传文件夹…** 按钮或将文件和文件夹拖到窗口中来上传。你也可以下载和删除文件，以及新建文件夹。
 
 要安装游戏，请将其上传到名称中带有“install”的存储：DBI 会边接收边安装。支持超过 4 GB 的文件。
+
+**上传文件夹时**，它会与 Switch 上的同名文件夹合并（不区分大小写）：同名文件会被替换，Switch 上的其他内容保持不变。`.DS_Store` 等系统文件会被跳过。上传到安装存储时只会发送文件，不会创建文件夹。
 
 ![文件（MTP）](docs/screenshot-mtp.png)
 
 **“Switch 正被其他程序占用。”** 在 macOS 上，系统相机服务（`ptpcamerad`）会在 MTP 设备连接后立即将其占用。点击 **释放设备**：应用会停止该服务并接管 Switch；macOS 会在需要时自行重新启动该服务。Android File Transfer 也会占用设备，请先退出它。
 
 在 Windows 上，此标签页会被隐藏：文件资源管理器已经能在 MTP 模式下显示 Switch。
+
+## 通过 FTP 管理文件（所有系统）
+
+DBI 可以通过 Wi-Fi 运行 FTP 服务器。**FTP** 标签页会连接到该服务器，并提供与 MTP 标签页相同的文件管理器，同样支持上传文件夹：
+
+1. 在 Switch 上打开 DBI，选择 **Run FTP server**。屏幕上会显示 Switch 的地址。
+2. 在应用中打开 **FTP** 标签页，输入地址，选择模式，然后点击 **连接**：
+   - **SD 卡（端口 5000）**：浏览 SD 卡，上传文件和文件夹，下载和删除文件，新建文件夹；
+   - **安装（端口 6000）**：上传游戏即可安装。
+
+电脑和 Switch 必须连接到同一网络。DBI 的服务器默认无需密码即可登录；如果你设置了密码，请在 **用户名和密码** 中填写。通过 Wi-Fi 传输通常比通过 USB 慢。
+
+![FTP](docs/screenshot-ftp.png)
+
+## 设置
+
+点击语言选择器旁边的 ⚙ 按钮即可打开设置：
+
+- **外观**：跟随系统、浅色或深色。
+- **文件视图**（用于 MTP 和 FTP 标签页）：经典、彩色图标、格式标签、表格、双行或平铺。预览会展示每种样式的效果。
+
+无论使用哪种样式，右键点击文件或文件夹都会打开包含相应操作的菜单。
+
+![设置](docs/screenshot-settings.png)
 
 ## Linux
 
@@ -87,7 +115,7 @@ sudo udevadm control --reload-rules
 | `time_data` / `time_handshake` / `waiting_for_switch` | 分别用于发送数据、协议交互和等待 Switch 的时间占比 |
 | `active` / `idle` | 安装时间，以及安装前后的空闲时间 |
 
-如果 `waiting_for_switch` 较高，瓶颈就在 Switch（microSD 写入速度、NSZ 解压）。启用 **调试** 后，日志会显示 DBI 的每个请求及其大小和速度。
+如果 `waiting_for_switch` 较高，瓶颈就在 Switch（microSD 写入速度、NSZ 解压）。启用 **调试**（位于日志面板中）后，日志会显示 DBI 的每个请求及其大小和速度。
 
 ## 命令行模式
 
@@ -124,7 +152,7 @@ make release      # dist/DBI Backend.app and dist/DBI Backend.exe
 | `dbi` | DBI0 协议（LIST / FILE_RANGE / EXIT）、文件夹扫描、会话统计 |
 | `usbconn` | 在 USB 安装和 MTP 模式下通过 libusb（gousb）打开 Switch，批量（bulk）传输 |
 | `mtp` | MTP 客户端（基于 USB 的 PTP）：存储、文件夹、上传和下载、超过 4 GB 的文件 |
-| `gui` | Fyne 界面 |
+| `gui` | Fyne 界面、FTP 客户端 |
 | `i18n` | 翻译（`i18n/locales/*.json`） |
 | `winusb` | 在 Windows 上安装 WinUSB（SetupAPI） |
 | `cmd/winusb-helper` | 用于安装驱动的原生 ARM64 Windows 辅助程序 |
@@ -143,6 +171,6 @@ make release      # dist/DBI Backend.app and dist/DBI Backend.exe
 - [lunixoid/dbibackend](https://github.com/lunixoid/dbibackend)（MIT）：协议的原始实现。
 - [DBI](https://github.com/rashevskyv/dbi)（作者 duckbill）：Switch 上的安装程序。
 - [libusb](https://libusb.info/)（LGPL-2.1）以静态方式链接到构建版本中。本项目源代码开放，因此你可以使用自己的 libusb 版本重新构建。
-- [Fyne](https://fyne.io/)（BSD-3-Clause）、[gousb](https://github.com/google/gousb)（Apache-2.0）、[zenity](https://github.com/ncruces/zenity)（MIT）。
+- [Fyne](https://fyne.io/)（BSD-3-Clause）、[gousb](https://github.com/google/gousb)（Apache-2.0）、[zenity](https://github.com/ncruces/zenity)（MIT）、[jlaffaye/ftp](https://github.com/jlaffaye/ftp)（ISC）。
 
 本项目与 Nintendo 无任何关联。请仅安装你拥有的游戏。

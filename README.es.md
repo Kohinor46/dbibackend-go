@@ -10,11 +10,13 @@ Es una reescritura en Go de [lunixoid/dbibackend](https://github.com/lunixoid/db
 
 ## Características
 
-- **Interfaz gráfica**: selector de carpeta (Finder, Explorador o arrastrar y soltar), lista de archivos encontrados con su tamaño, estado de la conexión, barra de progreso con la velocidad de transferencia y un registro.
-- **Sin reinicios**: cuando DBI termina, la aplicación vuelve a esperar a la Switch. Recuerda la última carpeta y el servidor se inicia automáticamente al abrirla.
+- **Interfaz gráfica**: selector de carpeta (Finder, Explorador o arrastrar y soltar), lista de archivos encontrados con su tamaño, estado de la conexión, barra de progreso con la velocidad de transferencia y un panel de registro común a todas las pestañas. El panel aparece contraído y muestra solo la última línea; despliégalo cuando lo necesites.
+- **Sin reinicios**: cuando DBI termina, la aplicación vuelve a esperar a la Switch. Recuerda la última carpeta; la instalación empieza cuando haces clic en **Iniciar**.
 - **11 idiomas**: inglés, ruso, español, italiano, alemán, francés, portugués, chino, japonés, hindi y árabe. El idioma sigue al del sistema y se puede cambiar desde la ventana.
 - **Controlador de Windows integrado**: si la aplicación detecta la Switch sin controlador, te ofrece instalarlo. Esto sustituye el paso manual con Zadig (ver más abajo).
-- **Archivos por MTP en macOS y Linux**: explora los almacenamientos de la Switch y sube, descarga y elimina archivos sin Android File Transfer (ver más abajo).
+- **Archivos por MTP en macOS y Linux**: explora los almacenamientos de la Switch, sube archivos y carpetas enteras, y descarga y elimina archivos sin Android File Transfer (ver más abajo).
+- **Archivos por FTP en todos los sistemas**: conéctate al servidor FTP de DBI por Wi-Fi, sin cable, para gestionar la tarjeta SD o instalar juegos (ver más abajo).
+- **Ajustes**: apariencia clara u oscura y seis estilos de vista de archivos para las pestañas MTP y FTP.
 - **Modo de línea de comandos** (`-cli`), que se comporta como el script original, para automatizaciones.
 - **Más segura que la original**: la Switch solo puede pedir archivos de la carpeta elegida.
 
@@ -30,7 +32,7 @@ Las compilaciones listas para usar están en la página de [Releases](../../rele
 
 ## Uso
 
-1. Abre la aplicación y elige la carpeta con tus juegos. Se incluyen las subcarpetas.
+1. Abre la aplicación, elige la carpeta con tus juegos (se incluyen las subcarpetas) y haz clic en **Iniciar**.
 2. En la Switch, abre DBI y elige **Install title from USB**.
 3. Conecta la Switch al ordenador con un cable USB. El estado cambia a **Conectado**.
 4. Elige los archivos en DBI e instálalos. El progreso y la velocidad se muestran en la parte inferior de la ventana.
@@ -49,15 +51,41 @@ macOS no tiene soporte integrado para MTP, así que la Switch no aparece en Find
 
 1. En la Switch, abre DBI y elige **Run MTP responder**; después conecta el cable.
 2. En la aplicación, abre la pestaña **Archivos (MTP)** y haz clic en **Conectar**.
-3. Elige un almacenamiento (tarjeta SD, NAND, destinos de instalación, partidas guardadas, etc.), abre carpetas y sube archivos con **Subir archivos…** o arrastrándolos a la ventana. También puedes descargar y eliminar archivos y crear carpetas.
+3. Elige un almacenamiento (tarjeta SD, NAND, destinos de instalación, partidas guardadas, etc.), abre carpetas y sube archivos y carpetas con **Subir archivos…** y **Subir carpeta…** o arrastrándolos a la ventana. También puedes descargar y eliminar archivos y crear carpetas.
 
 Para instalar un juego, súbelo a un almacenamiento que tenga «install» en su nombre: DBI lo instala a medida que llega. Se admiten archivos de más de 4 GB.
+
+**Al subir una carpeta**, se fusiona con la carpeta del mismo nombre en la Switch (sin distinguir mayúsculas de minúsculas): los archivos con el mismo nombre se reemplazan y todo lo demás que haya en la Switch se conserva. Los archivos de servicio, como `.DS_Store`, se omiten. A los almacenamientos de instalación solo se envían los archivos, sin las carpetas.
 
 ![Archivos (MTP)](docs/screenshot-mtp.png)
 
 **«La Switch está en uso por otro programa».** En macOS, el servicio de cámaras del sistema (`ptpcamerad`) se apropia de los dispositivos MTP en cuanto se conectan. Haz clic en **Liberar dispositivo**: la aplicación detiene el servicio y toma la Switch; macOS vuelve a iniciar el servicio por sí solo cuando lo necesita. Android File Transfer también retiene el dispositivo, así que ciérralo antes.
 
 En Windows la pestaña está oculta: el Explorador de archivos ya muestra la Switch en modo MTP.
+
+## Archivos por FTP (todos los sistemas)
+
+DBI puede ejecutar un servidor FTP por Wi-Fi. La pestaña **FTP** se conecta a él y ofrece el mismo gestor de archivos que la pestaña MTP, incluida la subida de carpetas:
+
+1. En la Switch, abre DBI y elige **Run FTP server**. En la pantalla aparece la dirección de la Switch.
+2. En la aplicación, abre la pestaña **FTP**, introduce la dirección, elige el modo y haz clic en **Conectar**:
+   - **Tarjeta SD (puerto 5000)**: explora la tarjeta SD, sube archivos y carpetas, descarga y elimina archivos y crea carpetas;
+   - **Instalación (puerto 6000)**: sube juegos para instalarlos.
+
+El ordenador y la Switch deben estar en la misma red. El servidor de DBI no pide contraseña; si has configurado una, introdúcela en **Usuario y contraseña**. Por Wi-Fi, las transferencias suelen ser más lentas que por USB.
+
+![FTP](docs/screenshot-ftp.png)
+
+## Ajustes
+
+El botón ⚙ junto al selector de idioma abre los ajustes:
+
+- **Apariencia**: como el sistema, clara u oscura.
+- **Vista de archivos** para las pestañas MTP y FTP: clásica, iconos de colores, etiquetas de formato, tabla, dos líneas o mosaico. Una vista previa muestra cada estilo.
+
+En todos los estilos, al hacer clic derecho en un archivo o una carpeta se abre un menú con sus acciones.
+
+![Ajustes](docs/screenshot-settings.png)
 
 ## Linux
 
@@ -87,7 +115,7 @@ Al final de cada sesión, el registro muestra una línea `Session stats`:
 | `time_data` / `time_handshake` / `waiting_for_switch` | Proporción del tiempo dedicada a enviar datos, al intercambio del protocolo y a esperar a la Switch |
 | `active` / `idle` | Tiempo de instalación y tiempo inactivo antes y después |
 
-Si `waiting_for_switch` es alto, el cuello de botella es la Switch (velocidad de escritura de la microSD, descompresión de NSZ). Con **Depuración** activada, el registro muestra cada solicitud de DBI con su tamaño y velocidad.
+Si `waiting_for_switch` es alto, el cuello de botella es la Switch (velocidad de escritura de la microSD, descompresión de NSZ). Con **Depuración** activada (en el panel de registro), el registro muestra cada solicitud de DBI con su tamaño y velocidad.
 
 ## Modo de línea de comandos
 
@@ -124,7 +152,7 @@ make release      # dist/DBI Backend.app and dist/DBI Backend.exe
 | `dbi` | Protocolo DBI0 (LIST / FILE_RANGE / EXIT), escaneo de carpetas, estadísticas de sesión |
 | `usbconn` | Apertura de la Switch mediante libusb (gousb) en los modos de instalación por USB y MTP, transferencias bulk |
 | `mtp` | Cliente MTP (PTP sobre USB): almacenamientos, carpetas, subida y descarga, archivos de más de 4 GB |
-| `gui` | Interfaz con Fyne |
+| `gui` | Interfaz con Fyne, cliente FTP |
 | `i18n` | Traducciones (`i18n/locales/*.json`) |
 | `winusb` | Instalación de WinUSB en Windows (SetupAPI) |
 | `cmd/winusb-helper` | Ayudante nativo para Windows ARM64 que instala el controlador |
@@ -143,6 +171,6 @@ Para añadir o corregir una traducción, edita `i18n/locales/<code>.json`. `go t
 - [lunixoid/dbibackend](https://github.com/lunixoid/dbibackend) (MIT): la implementación original del protocolo.
 - [DBI](https://github.com/rashevskyv/dbi) de duckbill: el instalador de la Switch.
 - [libusb](https://libusb.info/) (LGPL-2.1) se enlaza estáticamente en las compilaciones. El código fuente de este proyecto es abierto, así que puedes recompilarlo con tu propia versión de libusb.
-- [Fyne](https://fyne.io/) (BSD-3-Clause), [gousb](https://github.com/google/gousb) (Apache-2.0), [zenity](https://github.com/ncruces/zenity) (MIT).
+- [Fyne](https://fyne.io/) (BSD-3-Clause), [gousb](https://github.com/google/gousb) (Apache-2.0), [zenity](https://github.com/ncruces/zenity) (MIT), [jlaffaye/ftp](https://github.com/jlaffaye/ftp) (ISC).
 
 Este proyecto no está afiliado a Nintendo. Instala solo juegos que poseas.
