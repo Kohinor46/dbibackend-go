@@ -113,9 +113,32 @@ Meldet der Tab **Dateien (MTP)**, dass die Switch von einem anderen Programm ver
 
 Die Geschwindigkeit wird hauptsächlich durch die Switch begrenzt, nicht durch den Computer:
 
-- Über **USB 2.0** liegt die Obergrenze bei etwa **40 MB/s**. Bei unkomprimierten `.nsp`- / `.xci`-Dateien hält die App den Bus etwa 80 % der Zeit ausgelastet und erreicht durchschnittlich etwa 32 MB/s.
-- **`.nsz`-Dateien** werden etwa dreimal langsamer installiert: Die Switch entpackt jeden Block selbst.
+- Über **USB 2.0** (der Standardmodus der Switch) liegt die Obergrenze bei etwa **40 MB/s**. Bei unkomprimierten `.nsp`- / `.xci`-Dateien hält die App den Bus etwa 80 % der Zeit ausgelastet und erreicht durchschnittlich etwa 32 MB/s.
+- **`.nsz`-Dateien** werden langsamer installiert: Die Switch entpackt jeden Block selbst.
 - DBI fordert Daten in Blöcken von bis zu 1 MB an und verlangt den nächsten erst, wenn der vorherige verarbeitet ist. Der Computer kann das nicht beschleunigen.
+- Über **FTP** (WLAN) sind etwa 6 MB/s zu erwarten, über **MTP** (USB 2.0) etwa 27 MB/s.
+
+### USB 3.0
+
+Der Anschluss der Switch unterstützt USB 3.0 (5 Gbit/s), doch das System betreibt ihn nur mit USB 2.0. Mit Atmosphère aktivieren Sie USB 3.0 in `atmosphere/config/system_settings.ini` und starten die Switch anschließend neu:
+
+```ini
+[usb]
+usb30_force_enabled = u8!0x1
+```
+
+Auch das Kabel muss USB 3 unterstützen: Viele USB-C-Ladekabel übertragen Daten nur mit USB 2.0. Dass es funktioniert, erkennen Sie daran, dass `usb_MB/s` in `Session stats` deutlich über 40 liegt.
+
+Gemessen an einer Switch der ersten Revision mit DBI 902, Installation auf eine microSD-Karte Samsung EVO Plus:
+
+| Datei | `usb_MB/s` (über das Kabel) | `avg_MB/s` (Installation) | `waiting_for_switch` |
+|---|---|---|---|
+| `.nsp`, 10 GB | 246 | **38,9** (32 über USB 2.0) | 80 % |
+| `.nsz`, 2,2 GB | 220 | **23,4** | 86 % |
+
+Das Kabel ist dann nicht mehr der Engpass, doch die Installation wird nur um etwa 20 % schneller: Die meiste Zeit verbraucht die Switch selbst (Schreiben auf die microSD, Entpacken von `.nsz`).
+
+USB 3.0 stört Funk im 2,4-GHz-Band: Solange die Switch angeschlossen ist, können kabellose Joy-Con und WLAN im 2,4-GHz-Band verzögert reagieren. Deshalb lässt Nintendo USB 3.0 deaktiviert.
 
 Am Ende jeder Sitzung zeigt das Protokoll eine Zeile `Session stats`:
 

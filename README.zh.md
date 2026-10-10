@@ -113,9 +113,32 @@ sudo udevadm control --reload-rules
 
 速度主要受 Switch 限制，而不是电脑：
 
-- 使用 **USB 2.0** 时，上限约为 **40 MB/s**。对于未压缩的 `.nsp` / `.xci` 文件，应用能让总线约 80% 的时间保持繁忙，平均速度约为 32 MB/s。
-- **`.nsz` 文件** 的安装速度约慢三倍：Switch 需要自行解压每个数据块。
+- 使用 **USB 2.0**（Switch 默认使用的模式）时，上限约为 **40 MB/s**。对于未压缩的 `.nsp` / `.xci` 文件，应用能让总线约 80% 的时间保持繁忙，平均速度约为 32 MB/s。
+- **`.nsz` 文件** 的安装速度更慢：Switch 需要自行解压每个数据块。
 - DBI 以最大 1 MB 的分块请求数据，并且只有在处理完上一块后才会请求下一块。电脑无法加快这一过程。
+- 通过 **FTP**（Wi-Fi）传输约为 6 MB/s；通过 **MTP**（USB 2.0）约为 27 MB/s。
+
+### USB 3.0
+
+Switch 的接口支持 USB 3.0（5 Gbit/s），但系统将其限制在 USB 2.0 模式。使用 Atmosphère 时，可以在 `atmosphere/config/system_settings.ini` 中启用它，然后重启 Switch：
+
+```ini
+[usb]
+usb30_force_enabled = u8!0x1
+```
+
+数据线也必须支持 USB 3：许多 USB-C 充电线只能以 USB 2.0 传输数据。如果 `Session stats` 中的 `usb_MB/s` 明显超过 40，就说明已经生效。
+
+在初版 Switch 上使用 DBI 902、安装到 Samsung EVO Plus microSD 卡的实测结果：
+
+| 文件 | `usb_MB/s`（数据线传输） | `avg_MB/s`（安装） | `waiting_for_switch` |
+|---|---|---|---|
+| `.nsp`，10 GB | 246 | **38.9**（USB 2.0 下为 32） | 80% |
+| `.nsz`，2.2 GB | 220 | **23.4** | 86% |
+
+数据线不再是瓶颈，但安装速度只提升约 20%：大部分时间都花在 Switch 本身（写入 microSD 卡、解压 `.nsz`）。
+
+USB 3.0 会干扰 2.4 GHz 无线信号：Switch 连接期间，无线 Joy-Con 和 2.4 GHz Wi-Fi 可能会出现延迟。这正是 Nintendo 默认关闭 USB 3.0 的原因。
 
 每次会话结束时，日志会输出一行 `Session stats`：
 

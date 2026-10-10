@@ -113,9 +113,32 @@ If the **Files (MTP)** tab reports that the Switch is used by another program, t
 
 The speed is limited mostly by the Switch, not the computer:
 
-- Over **USB 2.0** the ceiling is about **40 MB/s**. On uncompressed `.nsp` / `.xci` files, the app keeps the bus busy about 80% of the time and reaches about 32 MB/s on average.
-- **`.nsz` files** install about three times slower: the Switch decompresses every block itself.
+- Over **USB 2.0** (what the Switch uses by default) the ceiling is about **40 MB/s**. On uncompressed `.nsp` / `.xci` files, the app keeps the bus busy about 80% of the time and reaches about 32 MB/s on average.
+- **`.nsz` files** install slower: the Switch decompresses every block itself.
 - DBI requests data in pieces of up to 1 MB and asks for the next piece only after it has processed the previous one. The computer cannot speed this up.
+- Over **FTP** (Wi-Fi) expect about 6 MB/s; over **MTP** (USB 2.0) about 27 MB/s.
+
+### USB 3.0
+
+The Switch's port supports USB 3.0 (5 Gbit/s), but the system keeps it at USB 2.0. With Atmosphère, turn it on in `atmosphere/config/system_settings.ini` and restart the Switch:
+
+```ini
+[usb]
+usb30_force_enabled = u8!0x1
+```
+
+The cable must support USB 3 too: many USB-C charging cables carry only USB 2.0. You can tell it works when `usb_MB/s` in `Session stats` goes well above 40.
+
+Measured on a first-revision Switch with DBI 902, installing to a Samsung EVO Plus microSD card:
+
+| File | `usb_MB/s` (over the cable) | `avg_MB/s` (install) | `waiting_for_switch` |
+|---|---|---|---|
+| `.nsp`, 10 GB | 246 | **38.9** (32 over USB 2.0) | 80% |
+| `.nsz`, 2.2 GB | 220 | **23.4** | 86% |
+
+The cable stops being the limit, but the install gets only about 20% faster: most of the time goes to the Switch itself (writing to the microSD card, `.nsz` decompression).
+
+USB 3.0 interferes with 2.4 GHz radio: while the Switch is connected, wireless Joy-Con and 2.4 GHz Wi-Fi may lag. Nintendo keeps USB 3.0 off for this reason.
 
 At the end of every session the log shows a `Session stats` line:
 

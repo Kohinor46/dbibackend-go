@@ -113,9 +113,32 @@ Si la pestaña **Archivos (MTP)** indica que la Switch está en uso por otro pro
 
 La velocidad la limita sobre todo la Switch, no el ordenador:
 
-- Por **USB 2.0** el máximo ronda los **40 MB/s**. Con archivos `.nsp` / `.xci` sin comprimir, la aplicación mantiene el bus ocupado cerca del 80 % del tiempo y alcanza unos 32 MB/s de media.
-- **Los archivos `.nsz`** se instalan unas tres veces más despacio: la Switch descomprime cada bloque por sí misma.
+- Por **USB 2.0** (el modo que la Switch usa por defecto) el máximo ronda los **40 MB/s**. Con archivos `.nsp` / `.xci` sin comprimir, la aplicación mantiene el bus ocupado cerca del 80 % del tiempo y alcanza unos 32 MB/s de media.
+- **Los archivos `.nsz`** se instalan más despacio: la Switch descomprime cada bloque por sí misma.
 - DBI pide los datos en fragmentos de hasta 1 MB y solo solicita el siguiente cuando ha procesado el anterior. El ordenador no puede acelerar esto.
+- Por **FTP** (Wi-Fi) cuenta con unos 6 MB/s; por **MTP** (USB 2.0), con unos 27 MB/s.
+
+### USB 3.0
+
+El puerto de la Switch admite USB 3.0 (5 Gbit/s), pero el sistema lo mantiene en USB 2.0. Con Atmosphère puedes activarlo en `atmosphere/config/system_settings.ini` y reiniciar la Switch:
+
+```ini
+[usb]
+usb30_force_enabled = u8!0x1
+```
+
+El cable también tiene que ser compatible con USB 3: muchos cables de carga USB-C solo transmiten datos a velocidad USB 2.0. Sabrás que funciona cuando `usb_MB/s` en `Session stats` supere con creces los 40.
+
+Mediciones en una Switch de primera revisión con DBI 902, instalando en una tarjeta microSD Samsung EVO Plus:
+
+| Archivo | `usb_MB/s` (por el cable) | `avg_MB/s` (instalación) | `waiting_for_switch` |
+|---|---|---|---|
+| `.nsp`, 10 GB | 246 | **38,9** (32 por USB 2.0) | 80 % |
+| `.nsz`, 2,2 GB | 220 | **23,4** | 86 % |
+
+El cable deja de ser el límite, pero la instalación solo se acelera en torno a un 20 %: la mayor parte del tiempo se la lleva la propia Switch (escritura en la microSD, descompresión de `.nsz`).
+
+USB 3.0 provoca interferencias en la banda de 2,4 GHz: mientras la Switch está conectada, los Joy-Con inalámbricos y el Wi-Fi de 2,4 GHz pueden ir con retraso. Por eso Nintendo mantiene USB 3.0 desactivado.
 
 Al final de cada sesión, el registro muestra una línea `Session stats`:
 
